@@ -101,10 +101,11 @@ SEED=SABC... ./soroauth sign \
   --secret-env SEED --json |
   jq -r .signed_entry
 
-# Wrap an entry with delegates, JSON out
+# Wrap an entry with delegates and nested delegates via --nested PARENT=CHILD, JSON out
 ./soroauth delegates \
   --entry <base64> --valid-until 1234567 \
-  --delegate GAAAA... --delegate GBBBB... --json |
+  --delegate GDM2DZY... --delegate GCZCHOZ... --delegate GCHGHL7... \
+  --nested GCZCHOZ...=GCWUKEH... --json |
   jq -r .wrapped_entry
 
 # Inspect an entry (output is JSON either way) and pick fields out of it
