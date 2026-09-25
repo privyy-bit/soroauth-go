@@ -199,3 +199,22 @@ jobs:
         run: go test -run '^$' -bench . -benchmem -count=1 . | tee bench.out
       - name: fail on allocation or byte regression
         run: go run ./scripts/checkbench bench.out testdata/bench/budgets.json
+
+  fuzz:
+    name: fuzz regression test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: generate corpus from vectors
+        run: go run ./scripts/gen_corpus.go
+      - name: run fuzz targets with corpus
+        run: |
+          go test -fuzz=FuzzAuthorizeEntry -fuzztime=10s ./...
+          go test -fuzz=FuzzPreimage -fuzztime=10s ./...
+          go test -fuzz=FuzzPayload -fuzztime=10s ./...
+          go test -fuzz=FuzzInspect -fuzztime=10s ./...
+

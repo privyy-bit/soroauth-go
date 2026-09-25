@@ -242,6 +242,33 @@ Use the first column's SHA (for an *annotated* tag, `git ls-remote` also
 prints a `refs/tags/v7^{}` line — use that dereferenced commit SHA, not the
 tag object's own SHA).
 
+## Fuzz corpus generation and fuzzing
+
+Fuzz seed corpora are automatically derived from the committed golden vectors
+using `scripts/gen_corpus.go`. This script extracts XDR bytes from the test vectors
+and populates seed directories under `testdata/corpus/` for each fuzz target
+(`FuzzAuthorizeEntry`, `FuzzPreimage`, `FuzzPayload`, and `FuzzInspect`).
+
+### Regenerating the corpus locally
+
+```sh
+go run ./scripts/gen_corpus.go
+```
+
+This is wired into CI so any regression or drift between the golden vectors and the fuzz
+corpora fails the build automatically.
+
+### Running fuzz targets locally with seeds
+
+To run a fuzz target locally with the generated seed corpus:
+
+```sh
+go run ./scripts/gen_corpus.go
+go test -fuzz=FuzzAuthorizeEntry -fuzztime=30s ./...
+```
+
+Any fuzz finding is captured as a committed regression fixture.
+
 ## Golden vectors
 
 `testdata/vectors/*.json` are generated, committed artefacts. They are the
