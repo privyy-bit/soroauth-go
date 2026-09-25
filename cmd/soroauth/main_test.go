@@ -561,6 +561,51 @@ func TestExitCodesJSONMode(t *testing.T) {
 }
 
 // TestExitCodeSuccess verifies that successful commands exit with code 0.
+func TestPipelineCompositionWithStdin(t *testing.T) {
+	v := loadVector(t, "delegates_from_legacy")
+	signer := vectorKeypair(t, "soroauth-vector-signer-1")
+
+	// Pipeline: soroauth delegates ... | soroauth sign --entry -
+	var out, errOut bytes.Buffer
+	// Simulate stdin with delegates output
+	delegatesStdout, _, err := runCLI(t, "delegates",
+		"--entry", v.PreWrapEntryXDR,
+		"--valid-until", "1234567",
+		"--delegate", v.Delegates[0].Address)
+	if err != nil {
+		t.Fatalf("delegates failed: %v", err)
+	}
+
+	var signErr error
+	signOut, signErr := runCLIEnvStdin(t, map[string]string{"SEED": signer.Seed()}, delegatesStdout,
+		"sign",
+		"--entry", "-",
+		"--valid-until", "1234567",
+		"--network", "testnet",
+		"--secret-env", "SEED",
+		"--for", v.Delegates[0].Address)
+	if signErr != nil {
+		t.Fatalf("sign from stdin pipeline failed: %v", signErr)
+	}
+
+	var entry xdr.SorobanAuthorizationEntry
+	if err := xdr.SafeUnmarshalBase64(strings.TrimSpace(signOut), &entry); err != nil {
+		t.Fatalf("decoding entry from pipeline: %v", err)
+	}
+	if entry.Credentials.Type != xdr.SorobanCredentialsTypeSorobanCredentialsAddressWithDelegates {
+		t.Errorf("credential type is %v, want delegates arm", entry.Credentials.Type)
+	}
+}
+
+// runCLIEnvStdin drives the dispatcher with a fake environment and custom stdin reader.
+func runCLIEnvStdin(t *testing.T, env map[string]string, stdinContent string, args ...string) (stdout string, err error) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	stdinReader := strings.NewReader(stdinContent)
+	err = runWithStdin(args, &out, &errOut, func(key string) string { return env[key] }, stdinReader)
+	return out.String(), err
+}
+
 func TestExitCodeSuccess(t *testing.T) {
 	v := loadVector(t, "v2_single_testnet")
 	signer := vectorKeypair(t, "soroauth-vector-signer-1")

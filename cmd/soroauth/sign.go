@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
@@ -58,6 +59,10 @@ type signOutput struct {
 }
 
 func runSign(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	return runSignWithStdin(args, stdout, stderr, getenv, os.Stdin)
+}
+
+func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(string) string, stdin io.Reader) error {
 	flags := flag.NewFlagSet("sign", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
@@ -66,7 +71,7 @@ func runSign(args []string, stdout, stderr io.Writer, getenv func(string) string
 		flags.PrintDefaults()
 	}
 
-	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR")
+	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR or -")
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
 	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the S… seed")
@@ -78,7 +83,12 @@ func runSign(args []string, stdout, stderr io.Writer, getenv func(string) string
 		return newErrorf(ExitUsageError, "%w", err)
 	}
 
-	input, err := decodeEntryOrEnvelope(*entryFlag)
+	resolvedEntry, err := resolveEntryArg(*entryFlag, stdin)
+	if err != nil {
+		return writeJSONError(stdout, *jsonFlag, err)
+	}
+
+	input, err := decodeEntryOrEnvelope(resolvedEntry)
 	if err != nil {
 		return writeJSONError(stdout, *jsonFlag, err)
 	}

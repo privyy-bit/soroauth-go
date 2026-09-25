@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/soroauth/soroauth-go"
 )
@@ -56,6 +57,10 @@ func (a *addressList) Set(value string) error {
 }
 
 func runDelegates(args []string, stdout, stderr io.Writer) error {
+	return runDelegatesWithStdin(args, stdout, stderr, os.Stdin)
+}
+
+func runDelegatesWithStdin(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 	flags := flag.NewFlagSet("delegates", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
@@ -64,7 +69,7 @@ func runDelegates(args []string, stdout, stderr io.Writer) error {
 		flags.PrintDefaults()
 	}
 
-	entryFlag := flags.String("entry", "", "the authorization entry, as base64 XDR")
+	entryFlag := flags.String("entry", "", "the authorization entry, as base64 XDR or -")
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signatures are valid")
 	var delegates addressList
 	flags.Var(&delegates, "delegate", "a delegate address; repeat for several")
@@ -74,7 +79,12 @@ func runDelegates(args []string, stdout, stderr io.Writer) error {
 		return newErrorf(ExitUsageError, "%w", err)
 	}
 
-	entry, err := decodeEntry(*entryFlag)
+	resolvedEntry, err := resolveEntryArg(*entryFlag, stdin)
+	if err != nil {
+		return writeJSONError(stdout, *jsonFlag, err)
+	}
+
+	entry, err := decodeEntry(resolvedEntry)
 	if err != nil {
 		return writeJSONError(stdout, *jsonFlag, err)
 	}
