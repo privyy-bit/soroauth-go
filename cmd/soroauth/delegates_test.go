@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/soroauth/soroauth-go"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
@@ -273,5 +275,88 @@ func TestDelegatesJSONErrorStaysOnStdout(t *testing.T) {
 	}
 	if strings.Contains(stdout, "usage:") {
 		t.Error("stdout contains usage text in JSON error mode")
+	}
+}
+func TestRunDelegatesNestedSuccessAndGolden(t *testing.T) {
+	// Construct a basic address entry to wrap
+	addr, _ := xdr.ScAddressFromAccountId(xdr.MustAddress("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"))
+	baseEntry := xdr.SorobanAuthorizationEntry{
+		Credentials: xdr.SorobanCredentials{
+			Type: xdr.SorobanCredentialsTypeSorobanCredentialsAddress,
+			Address: &xdr.SorobanCredentialsAddress{
+				Address: addr,
+			},
+		},
+	}
+	enc, err := encodeEntry(baseEntry)
+	if err != nil {
+		t.Fatalf("failed to encode entry: %v", err)
+	}
+
+	parentAddr := "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	childAddr := "GCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+
+	var stdout, stderr bytes.Buffer
+	err = runDelegates([]string{
+		"--entry", enc,
+		"--valid-until", "123456",
+		"--delegate", parentAddr,
+		"--nested", parentAddr + "=" + childAddr,
+		"--json",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
+	}
+
+	var out delegatesOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("failed to unmarshal JSON output: %v (stdout: %s)", err, stdout.String())
+	}
+	if out.WrappedEntry == "" {
+		t.Fatalf("expected wrapped_entry in JSON output, got %q", stdout.String())
+	}
+
+	// Verify the tree built via CLI matches WithDelegates library call
+	libTree := []soroauth.Delegate{
+		{
+			Address: parentAddr,
+			Nested: []soroauth.Delegate{
+				{Address: childAddr},
+			},
+		},
+	}
+	expectedWrapped, err := soroauth.WithDelegates(baseEntry, 123456, libTree, nil)
+	if err != nil {
+		t.Fatalf("library WithDelegates failed: %v", err)
+	}
+	expectedEnc, err := encodeEntry(expectedWrapped)
+	if err != nil {
+		t.Fatalf("failed to encode expected entry: %v", err)
+	}
+
+	if out.WrappedEntry != expectedEnc {
+		t.Errorf("CLI wrapped entry %q does not match library wrapped entry %q", out.WrappedEntry, expectedEnc)
+	}
+}
+
+func TestRunDelegatesFailureStdoutResultsOnly(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	// Missing --delegate should fail
+	err := runDelegates([]string{
+		"--entry", "AAAA",
+		"--valid-until", "123456",
+		"--json",
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Assert stdout stays results-only (contains JSON error object, no usage/help text)
+	stdoutStr := stdout.String()
+	if !strings.Contains(stdoutStr, "error") {
+		t.Errorf("expected JSON error on stdout, got %q", stdoutStr)
+	}
+	if strings.Contains(stdoutStr, "usage:") || strings.Contains(stdoutStr, "flags:") {
+		t.Errorf("stdout should stay results-only on failure, but contained usage text: %q", stdoutStr)
 	}
 }
