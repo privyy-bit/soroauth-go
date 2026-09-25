@@ -566,7 +566,6 @@ func TestPipelineCompositionWithStdin(t *testing.T) {
 	signer := vectorKeypair(t, "soroauth-vector-signer-1")
 
 	// Pipeline: soroauth delegates ... | soroauth sign --entry -
-	var out, errOut bytes.Buffer
 	// Simulate stdin with delegates output
 	delegatesStdout, _, err := runCLI(t, "delegates",
 		"--entry", v.PreWrapEntryXDR,

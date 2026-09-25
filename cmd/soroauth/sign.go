@@ -128,14 +128,11 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 		if err := json.Unmarshal(assertionBytes, &assertion); err != nil {
 			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "malformed assertion JSON: %w", err))
 		}
-		passkeySigner, err := soroauth.NewPasskeySigner(assertion)
+		passkeySigner, err := soroauth.NewPasskeySigner(assertion.RawID, assertion.ClientDataJSON, assertion.AuthenticatorData, assertion.Signature)
 		if err != nil {
 			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "invalid passkey assertion: %w", err))
 		}
 		signer = passkeySigner
-		if err != nil {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "invalid passkey assertion: %w", err))
-		}
 	}
 
 	// An envelope carries entries for whatever addresses simulation recorded,
