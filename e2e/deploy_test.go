@@ -130,12 +130,11 @@ func (h *harness) deployFixture(
 }
 
 // deployModularAccount uploads the modular-account fixture and instantiates it
-// with the given delegate signer set.
+// with the given delegate signer set using the shared DeployAndFundFixture helper.
 func (h *harness) deployModularAccount(t *testing.T, deployer *keypair.Full, signers []string) deployment {
 	t.Helper()
-	return h.deployFixture(t, deployer, "modular_account", []xdr.ScVal{
-		scAddressVecVal(t, signers),
-	})
+	addr := h.DeployAndFundFixture(t, deployer, "modular_account", scAddressVecVal(t, signers))
+	return deployment{ContractAddress: addr}
 }
 
 // sessionKey is one entry of the SessionKey vector the session-keys fixture
@@ -155,11 +154,12 @@ func (h *harness) deploySessionKeys(t *testing.T, deployer *keypair.Full, keys [
 	for _, key := range keys {
 		values = append(values, sessionKeyVal(t, key))
 	}
-	return h.deployFixture(t, deployer, "session_keys", []xdr.ScVal{scVecVal(values)})
+	addr := h.DeployAndFundFixture(t, deployer, "session_keys", scVecVal(values))
+	return deployment{ContractAddress: addr}
 }
 
 // deployThresholdAccount uploads the threshold-account fixture and
-// instantiates it with the given signer set and threshold.
+// instantiates it with the given signer set and threshold using the shared DeployAndFundFixture helper.
 func (h *harness) deployThresholdAccount(
 	t *testing.T,
 	deployer *keypair.Full,
@@ -167,10 +167,8 @@ func (h *harness) deployThresholdAccount(
 	threshold uint32,
 ) deployment {
 	t.Helper()
-	return h.deployFixture(t, deployer, "threshold_account", []xdr.ScVal{
-		scAddressVecVal(t, signers),
-		scU32Val(threshold),
-	})
+	addr := h.DeployAndFundFixture(t, deployer, "threshold_account", scAddressVecVal(t, signers), scU32Val(threshold))
+	return deployment{ContractAddress: addr}
 }
 
 // scSymbolVal wraps a symbol as an ScVal, the type an ScMap's keys must use.

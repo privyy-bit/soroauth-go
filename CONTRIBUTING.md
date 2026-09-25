@@ -271,6 +271,18 @@ saying why, with the protocol reference — do not change it to make a test pass
 The generator refuses to run against any `@stellar/stellar-sdk` other than the
 pinned 17.1.0, since a vector from another build is not evidence about this one.
 
+## Shared e2e Fixture Deployment Harness & Running Tests
+
+The e2e test suite provides a shared fixture deployment helper (`DeployAndFundFixture`) on the `harness` type in `e2e/harness_test.go`. This helper handles uploading any WebAssembly contract fixture with constructor arguments and funding it on the live network, preventing test scenarios from duplicating boilerplate deployment logic.
+
+### Reproducing e2e Test Failures Locally
+
+```sh
+export SOROAUTH_RPC_URL=https://soroban-testnet.stellar.org
+cd e2e/contracts && stellar contract build
+cd ../.. && go test -tags e2e -v ./e2e/...
+```
+
 ## Running the e2e tests
 
 ```sh

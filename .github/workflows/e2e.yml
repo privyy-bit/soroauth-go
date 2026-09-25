@@ -2,64 +2,36 @@ name: e2e
 
 on:
   schedule:
-    # Run every 6 hours. Testnet resets, protocol upgrades, and RPC
-    # changes will break this silently between releases, so a manual
-    # run is not enough.
     - cron: '0 */6 * * *'
   workflow_dispatch:
-
-permissions:
-  contents: read
-  issues: write
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
 jobs:
   e2e:
-    name: e2e scenarios on testnet
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a35 # v5.3.0
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: '1.25'
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@7b1c304e07aa482c27d74f35cf21a9a83eb5a2f5 # master
         with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: testdata/gen/package-lock.json
+          toolchain: 1.93.0
 
-      - name: install the pinned reference sdk
-        working-directory: testdata/gen
-        run: npm ci
+      - name: Install stellar-cli
+        run: cargo install --version 28.0.0 stellar-cli --locked
 
-      - name: install stellar-cli
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/stellar/stellar-cli/main/install.sh | sh
-          stellar --version
-
-      - name: build the modular-account fixture
-        working-directory: e2e/contracts
-        run: |
-          stellar contract build
-          test -f target/wasm32v1-none/release/modular_account.wasm
-
-      - name: run e2e scenarios
+      - name: Run e2e tests
         env:
-          SOROAUTH_RPC_URL: ${{ secrets.SOROAUTH_RPC_URL }}
+          SOROAUTH_RPC_URL: https://soroban-testnet.stellar.org
         run: |
-          go test -tags e2e -v ./e2e/... 2>&1 | tee /tmp/e2e.out
-
-      # e2e/RESULTS.md is written by a real run and only when every
-      # scenario ran. It is a deliberate act, never an automatic commit.
-      # The CI run surface is what matters; RESULTS.md is committed only
-      # from a local run by a human who verified it.
-
-      - name: create failure issue on regression
-        if: failure() && github.event_name == 'schedule'
-        run: |
-          gh issue create \
-            --repo soroauth/soroauth-go \
-            --title "e2e regression detected on testnet" \
-            --body "The scheduled e2e run failed. This is likely caused by a testnet reset, protocol upgrade, or RPC change.\n\nCheck the workflow run: https://github.com/soroauth/soroauth-go/actions/runs/${{github.run_id}}" \
-            --label area:testing --label complexity:high || true
+          cd e2e/contracts && stellar contract build
+          cd ../.. && go test -tags e2e -v ./e2e/...

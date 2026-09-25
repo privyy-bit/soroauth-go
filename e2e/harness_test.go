@@ -145,8 +145,28 @@ func (h *harness) newAccount(t *testing.T, label string) *keypair.Full {
 	return kp
 }
 
+// DeployAndFundFixture deploys any WebAssembly contract fixture with constructor arguments
+// and funds it on the live network, preventing test scenarios from duplicating deployment boilerplate.
+func (h *harness) DeployAndFundFixture(t *testing.T, deployer txnbuild.Account, wasmName string, constructorArgs ...xdr.ScVal) string {
+	t.Helper()
+	var fullKp *keypair.Full
+	if kp, ok := deployer.(*keypair.Full); ok {
+		fullKp = kp
+	} else {
+		var err error
+		fullKp, err = keypair.ParseFull(deployer.GetAccountId())
+		if err != nil {
+			t.Fatalf("parsing deployer account for fixture deployment: %v", err)
+		}
+	}
+	deployment := h.deployFixture(t, fullKp, wasmName, constructorArgs)
+	h.fundContract(t, fullKp, deployment.ContractAddress, 10_000_000_000)
+	return deployment.ContractAddress
+}
+
 // fund asks friendbot for a funded account, retrying briefly: friendbot is a
 // shared testnet service and an occasional failure is not a test failure.
+
 func (h *harness) fund(t *testing.T, address string) {
 	t.Helper()
 
