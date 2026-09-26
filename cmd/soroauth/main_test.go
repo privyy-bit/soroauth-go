@@ -188,18 +188,23 @@ func TestPayloadJSONOutput(t *testing.T) {
 }
 
 func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
-	stdout, stderr, err := runCLI(t, "payload",
-		"--entry", "not-base64",
-		"--valid-until", "1",
-		"--network", "testnet")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if stdout != "" {
-		t.Errorf("stdout should be completely empty on failure path, got: %q", stdout)
-	}
-	if stderr == "" {
-		t.Error("expected errors on stderr")
+	// Ensure that stdout stays strictly empty/results-only on all error paths.
+	for _, subcmd := range [][]string{
+		{"payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet"},
+		{"sign", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--secret-env", "SEED"},
+		{"delegates", "--entry", "not-base64", "--valid-until", "1", "--delegate", "GABC..."},
+		{"inspect", "--entry", "not-base64"},
+	} {
+		stdout, stderr, err := runCLI(t, subcmd...)
+		if err == nil {
+			t.Fatalf("cmd %v expected failure", subcmd)
+		}
+		if stdout != "" {
+			t.Errorf("cmd %v produced stdout on failure: %q", subcmd, stdout)
+		}
+		if stderr == "" {
+			t.Errorf("cmd %v expected errors on stderr", subcmd)
+		}
 	}
 }
 
