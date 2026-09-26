@@ -208,6 +208,17 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 	}
 }
 
+func TestPipelineFailureStdoutResultsOnly(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runWithStdin([]string{"payload", "--entry", "-", "--valid-until", "1", "--network", "testnet"}, &stdout, &stderr, os.Getenv, strings.NewReader("bad-input"))
+	if err == nil {
+		t.Fatal("expected failure for bad stdin")
+	}
+	if stdout.String() != "" {
+		t.Errorf("expected empty stdout on pipeline failure, got %q", stdout.String())
+	}
+}
+
 func TestPipelineFailureOutputsCleanStdout(t *testing.T) {
 	stdinReader := strings.NewReader("invalid-stdin-entry")
 	var stdout, stderr bytes.Buffer
