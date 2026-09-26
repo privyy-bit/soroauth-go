@@ -61,6 +61,8 @@ jobs:
             exit 1
           fi
       - name: test
+        run: go test -race -v -run TestAuthorizeEntryExpirationProperty ./...
+      - name: test all
         run: go test -race ./...
 
   golden-drift:

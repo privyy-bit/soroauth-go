@@ -166,6 +166,17 @@ var commandSpecs = []commandSpec{
 			{Name: "json", Description: "output as JSON", TakesValue: false},
 		},
 	},
+	{
+		Name:        "wasm-budget",
+		Description: "measure the wasm core against a size ceiling",
+		Flags: []flagSpec{
+			{Name: "out", Description: "path to the wasm artifact to measure", TakesValue: true},
+			{Name: "budget", Description: "maximum allowed size in bytes", TakesValue: true},
+			{Name: "prev-size", Description: "previous release's size, for a delta", TakesValue: true},
+			{Name: "build-cmd", Description: "command to build the artifact before measuring", TakesValue: true},
+			{Name: "json", Description: "output the result as JSON", TakesValue: false},
+		},
+	},
 }
 
 // completionsOutput is the shape of the --json success object.
