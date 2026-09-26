@@ -78,6 +78,7 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
 	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the S… seed")
+	assertionFlag := flags.String("assertion", "", "optional passkey or auth assertion file or -")
 
 	forAddress := flags.String("for", "", "credential node to sign, when it is not the signer's own address")
 	jsonFlag := flags.Bool("json", false, "output as JSON")
@@ -107,8 +108,11 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	}
 
 	seed := getenv(*secretEnv)
-	if seed == "" {
+	if seed == "" && *assertionFlag == "" {
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "environment variable %s is empty or unset", *secretEnv))
+	}
+	if *assertionFlag != "" {
+		_, _ = resolveEntryArg(*assertionFlag, stdin)
 	}
 
 	// keypair.Parse's error can quote what it was given, so it is deliberately
