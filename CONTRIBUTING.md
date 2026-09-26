@@ -352,30 +352,13 @@ node gen.mjs
 
 Then commit the regenerated files together with the generator change.
 
-## Fuzzing and Seed Corpora
-
-Every fuzz target has an associated seed corpus located in `testdata/fuzz/`, which is automatically generated from the golden vectors via `cmd/gencorpus`.
-
-To regenerate the fuzz corpus locally:
-
-```sh
-go run ./cmd/gencorpus
-```
-
-To run a fuzz target with the seed corpus:
-
-```sh
-go test -fuzz=FuzzAuthorizeEntry -fuzztime=30s .
-```
-
-CI checks that the committed corpus matches the generated output and fails on drift.
-
 ### Versioning the vector schema and reproducing failures
 
 Every golden vector carries an explicit `schema_version` field (currently `1`). The loader (`golden_test.go`) explicitly checks this version and rejects any unknown or missing schema version rather than guessing or ignoring removed/reinterpreted fields.
 
 - **Bumping the version:** When a protocol change or schema evolution requires altering the structure of golden vectors, increment `schema_version` in both the generator (`testdata/gen/gen.mjs`) and all committed vector JSON files under `testdata/vectors/`, and update the expected version check in `golden_test.go`.
 - **Reproducing a failure locally:** If a vector fails schema validation or drifts from the reference implementation, run `go test -run TestGoldenVectors` (or `make vectors-check`) from the repository root. The test suite will fail loudly, naming the vector and the exact mismatch or unsupported schema version.
+
 If a vector disagrees with the Go code, the Go code is wrong until proven
 otherwise. If you believe the vector itself is wrong, stop and open an issue
 saying why, with the protocol reference — do not change it to make a test pass.
@@ -515,6 +498,50 @@ To run it locally:
 ```sh
 go test -run='^$' -fuzz=FuzzValidateDelegateOrder -fuzztime=30s .
 ```
+
+### The fuzz seed corpus
+
+`FuzzValidateDelegateOrder`'s seed corpus is generated from the golden vectors,
+which are the entries this library is proven against: every credential arm, a
+sub-invocation tree, a create-contract invocation, the int64 nonce edges, and
+three delegate shapes including one address at two nesting depths. Seeding from
+real entries means the fuzzer's mutations start inside the space of things that
+decode, rather than spending its budget discovering what a valid entry looks
+like.
+
+Regenerate it from the repository root:
+
+```sh
+go run ./cmd/gencorpus
+```
+
+The seeds land in `testdata/fuzz/FuzzValidateDelegateOrder/`. That path is not a
+choice: Go reads a target's seed corpus from `testdata/fuzz/<TargetName>` and
+nowhere else, and each file must be in Go's corpus format (a
+`go test fuzz v1` header, then one Go literal per fuzz argument) or it fails the
+package's tests instead of being skipped. `gencorpus` writes the decoded entry
+bytes, since the target's argument is the `[]byte` it passes to
+`UnmarshalBinary`.
+
+Every seed is run by the ordinary suite, as a named subtest — no `-fuzz` flag
+needed, so a seed that starts failing fails `go test ./...`:
+
+```sh
+go test -run FuzzValidateDelegateOrder -v .
+```
+
+```
+=== RUN   FuzzValidateDelegateOrder/v2_sub_invocations_0
+--- PASS: FuzzValidateDelegateOrder (0.01s)
+```
+
+The generator is deterministic, so CI regenerates the corpus and fails on drift,
+the same way it does for the vectors themselves. Do not hand-edit a seed: change
+the vectors or the generator and regenerate.
+
+For the fuzz *run* — the part that searches for new inputs — see the `fuzz` job
+in `.github/workflows/ci-go.yml`, which runs on push to `main` and on demand
+rather than on pull requests.
 
 ### Capturing regressions
 
