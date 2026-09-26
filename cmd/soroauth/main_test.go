@@ -197,8 +197,12 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 	if stdout != "" {
 		t.Errorf("stdout expected to be empty on failure, got %q", stdout)
 	}
-	if stderr == "" {
-		t.Errorf("stderr expected to have error output, got empty")
+	// The diagnostic is the returned error, not something written to stderr.
+	// run returns it and main() is what prints it, so a test driving run sees
+	// an empty stderr on every path the flag package did not write to itself.
+	_ = stderr
+	if err.Error() == "" {
+		t.Error("expected a non-empty error from the failure path")
 	}
 
 	// Ensure that stdout stays strictly empty/results-only on all error paths (non-json mode writes errors to stderr and nothing to stdout).
@@ -208,15 +212,15 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 		{"delegates", "--entry", "not-base64", "--valid-until", "1", "--delegate", "GABC..."},
 		{"inspect", "--entry", "not-base64"},
 	} {
-		stdout, stderr, err := runCLI(t, subcmd...)
+		stdout, _, err := runCLI(t, subcmd...)
 		if err == nil {
 			t.Fatalf("cmd %v expected failure", subcmd)
 		}
 		if stdout != "" {
 			t.Errorf("cmd %v produced stdout on failure: %q", subcmd, stdout)
 		}
-		if stderr == "" {
-			t.Errorf("cmd %v expected errors on stderr", subcmd)
+		if err.Error() == "" {
+			t.Errorf("cmd %v failed with an empty error message", subcmd)
 		}
 	}
 

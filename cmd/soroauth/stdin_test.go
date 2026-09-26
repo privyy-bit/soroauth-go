@@ -1,9 +1,9 @@
 package main
 
 import (
-	"os"
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -103,9 +103,14 @@ func TestStdinEntryPipelinesReal(t *testing.T) {
 			t.Fatalf("delegates stdin failed: %v", err)
 		}
 		var delRes struct {
-			wrappedEntry string `json:"wrapped_entry"`
+			WrappedEntry string `json:"wrapped_entry"`
 		}
-		_ = json.Unmarshal([]byte(stdoutDel), &delRes)
+		if err := json.Unmarshal([]byte(stdoutDel), &delRes); err != nil {
+			t.Fatalf("delegates stdin json unmarshal failed: %v\nstdout: %s", err, stdoutDel)
+		}
+		if delRes.WrappedEntry == "" {
+			t.Errorf("delegates read the entry from stdin but printed no wrapped_entry: %s", stdoutDel)
+		}
 	}
 
 	stdoutFail, _, err := runCLIStdin(t, nil, "not-base64-data",
