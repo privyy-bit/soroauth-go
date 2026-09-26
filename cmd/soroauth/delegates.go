@@ -24,8 +24,6 @@ Nested delegate trees are supported via --nested-json (or through the library wi
 
 Nesting limit: up to 10 levels deep.
 
-Nesting limit: up to 10 levels deep.
-
 The delegate signatures are left as placeholders. Fill each one afterwards with:
 
   soroauth sign --entry <wrapped> --for <delegate address> ...
