@@ -524,3 +524,11 @@ Security reports go through [SECURITY.md](SECURITY.md), not the issue tracker.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+### Pipeline Composition
+
+All subcommands support `--entry -` to read base64 XDR entries from stdin, enabling pipelines such as:
+
+```bash
+soroauth delegates --entry <base64-xdr> | soroauth sign --entry - --secret-env MY_SEED
+```
