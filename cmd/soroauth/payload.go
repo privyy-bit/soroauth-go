@@ -19,6 +19,8 @@ const payloadUsage = `soroauth payload — print the signing preimage and payloa
 usage:
   soroauth payload --entry <base64|-> --valid-until <ledger> --network <name|passphrase> [--json]
 
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines.
+
 Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
 
   soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
