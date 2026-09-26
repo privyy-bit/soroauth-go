@@ -206,6 +206,21 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 			t.Errorf("cmd %v expected errors on stderr", subcmd)
 		}
 	}
+
+	// Also test JSON failure output paths to ensure stdout only carries JSON error object and not usage text or trailing junk
+	stdout, _, err := runCLI(t, "payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--json")
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	var jsonErr struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &jsonErr); err != nil {
+		t.Fatalf("stdout is not valid JSON error object: %q (%v)", stdout, err)
+	}
+	if jsonErr.Error == "" {
+		t.Error("json error object missing error field")
+	}
 }
 
 func TestPipelineStdoutResultsOnlyOnFailure(t *testing.T) {
