@@ -203,6 +203,18 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 	}
 }
 
+func TestPipelineFailureOutputsCleanStdout(t *testing.T) {
+	stdinReader := strings.NewReader("invalid-stdin-entry")
+	var stdout, stderr bytes.Buffer
+	err := runWithStdin([]string{"payload", "--entry", "-", "--valid-until", "1", "--network", "testnet"}, &stdout, &stderr, os.Getenv, stdinReader)
+	if err == nil {
+		t.Fatal("expected pipeline failure with invalid stdin")
+	}
+	if stdout.String() != "" {
+		t.Errorf("expected empty stdout on pipeline failure, got %q", stdout.String())
+	}
+}
+
 func TestPayloadJSONErrorStaysOnStdout(t *testing.T) {
 	// On error with --json, stdout must contain only the JSON error object,
 	// nothing else (no usage text, no partial output).
@@ -577,18 +589,6 @@ func TestExitCodesJSONMode(t *testing.T) {
 }
 
 // TestExitCodeSuccess verifies that successful commands exit with code 0.
-func TestPipelineFailureOutputsCleanStdout(t *testing.T) {
-	var out, errOut bytes.Buffer
-	stdin := strings.NewReader("not-valid-base64\n")
-	err := runWithStdin([]string{"payload", "--entry", "-", "--network", "testnet"}, &out, &errOut, func(string) string { return "" }, stdin)
-	if err == nil {
-		t.Fatal("expected error on invalid pipeline input, got nil")
-	}
-	if out.String() != "" {
-		t.Errorf("expected stdout to stay empty on failure path, got %q", out.String())
-	}
-}
-
 func TestPipelineFailureOutputsCleanStdoutLegacy(t *testing.T) {
 	var out, errOut bytes.Buffer
 	// Simulate piping invalid data via stdin or triggering a failure path
