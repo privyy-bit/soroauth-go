@@ -70,14 +70,44 @@ The underlying commands are:
 ```sh
 gofmt -l .        # must print nothing
 go vet ./...
+golangci-lint run ./...
 go test -race ./...
 ```
 
-CI runs exactly these, plus the golden-vector drift check and the signing-path
-budget check (see [Benchmarks](#benchmarks)). The suite runs with `-race`
-because `internal/xdrcopy` shares encoder and decoder buffers across calls
-through `sync.Pool`; without the detector, `TestCopyConcurrentReuse` would
-still pass on code that races.
+CI runs all of these except `golangci-lint`, plus the golden-vector drift check
+and the contract build; the signing-path budget check runs on push to main (see
+[Benchmarks](#benchmarks)). `golangci-lint` is a local gate only, because pull
+requests are capped at three checks — see [Linting](#linting).
+
+The suite runs with `-race` because `internal/xdrcopy` shares encoder and
+decoder buffers across calls through `sync.Pool`; without the detector,
+`TestCopyConcurrentReuse` would still pass on code that races.
+
+## Linting
+
+The gate is `.golangci.yml`, run locally. There is no `lint` job in
+`.github/workflows/ci.yml`: pull requests are capped at three checks, and the
+two that gate a merge are `vet and test` and `golden vectors are reproducible`.
+Run the linter before you push; a reviewer may also run it.
+
+The config is deliberately small, and each linter in it is there because the
+project would actually fix what it reports; the file says which and why, and
+which linters are off on purpose. A linter whose findings are all suppressed
+should be deleted rather than left as decoration.
+
+The config was verified against `v2.14.0`. Install that version and run it from
+the repository root:
+
+```sh
+GOBIN="$PWD/.tools" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+./.tools/golangci-lint run ./...
+```
+
+`.tools/` is gitignored. `golangci-lint run` prints `0 issues.` and exits 0 when
+clean; a finding names the file, the line and the linter. Fix a finding rather
+than excluding it. The one documented exception is `fmt.Fprint*` to the CLI's
+own stdout/stderr streams, listed under `errcheck.exclude-functions`; adding to
+that list needs a reason in the config, not a `//nolint` at the call site.
 
 ### The nested adapter module
 
@@ -458,6 +488,33 @@ fixed set of 100 iterations per property with seed `0xDEADBEEF` and is the one
 executed in CI. If it passes locally but the full property test fails, the
 failure is in the extended search space — increase `MinSuccessfulTests` in the
 deterministic test to narrow it down.
+
+### Fuzzing ValidateDelegateOrder
+
+`FuzzValidateDelegateOrder` in `delegates_test.go` feeds arbitrary bytes to the
+XDR decoder and, for anything that decodes to an entry, asserts that
+`ValidateDelegateOrder` neither panics nor accepts a delegate array that is
+mis-ordered or carries a duplicate at one level. Its seed corpus is built from a
+golden vector, a hand-built well-formed tree, and that tree with one delegate
+address overwritten to duplicate its sibling.
+
+The seeds are constructed with `f` passed to the test helpers, which take
+`testing.TB`. Do not build a `&testing.T{}` literal to satisfy them: it is an
+uninitialised struct, so `Helper()` and `Fatalf()` on it panic instead of
+reporting, and a seed that failed to build would take the whole target down
+rather than failing it.
+
+The fuzz run itself is not a pull-request check — 30 seconds of fuzzing per push
+would slow every review for a target whose job is to find inputs over time. It
+runs on push to `main` and on demand, as the `fuzz` job in
+`.github/workflows/ci-go.yml`. What a pull request does exercise is the seed
+corpus, through the ordinary `go test ./...`.
+
+To run it locally:
+
+```sh
+go test -run='^$' -fuzz=FuzzValidateDelegateOrder -fuzztime=30s .
+```
 
 ### Capturing regressions
 
