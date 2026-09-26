@@ -47,6 +47,14 @@ jobs:
         run: go test -race -v -run TestAuthorizeEntryExpirationProperty ./...
       - name: test all
         run: go test -race ./...
+      # The parity regression test lives in the e2e package, so the tag hides it
+      # from `go test ./...`, but it needs no network: it reads the committed
+      # report when a live one is absent (e2e/testdata/parity_regression.json).
+      # Run here as a step of this job rather than as a job of its own, because
+      # pull requests are capped at three checks. This is what makes a parity
+      # regression fail the build instead of only a local run.
+      - name: parity report regression
+        run: go test -tags e2e -run TestParityReportRegression ./e2e
 
   golden-drift:
     name: golden vectors are reproducible

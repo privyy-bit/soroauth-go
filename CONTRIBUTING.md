@@ -413,6 +413,27 @@ between releases.
   go test -tags e2e -v ./e2e/...
   ```
 
+## Parity reports
+
+The e2e suite writes a machine-readable `parity-report.json` alongside
+`RESULTS.md`, listing every scenario with its vector id, implementation,
+verdict and observed credential arm, so a parity regression can be read by a
+tool rather than by eye.
+
+`TestParityReportRegression` checks that report's shape: a non-zero scenario
+count, and a vector id and verdict on every entry. It needs no network — when
+no live report is present it reads the committed fixture at
+`e2e/testdata/parity_regression.json` — so it runs in CI as a step of the `vet
+and test` job, and a regression fails the build rather than only a local run:
+
+```sh
+go test -tags e2e -run TestParityReportRegression ./e2e
+```
+
+To debug a failure, inspect the generated `parity-report.json` in the
+repository root after a full e2e run; it carries the per-scenario verdicts the
+test is asserting over.
+
 ## Coverage reporting (CI)
 
 The CI pipeline (`coverage` job in `.github/workflows/ci.yml`) measures test
