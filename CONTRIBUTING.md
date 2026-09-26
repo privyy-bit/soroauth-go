@@ -292,6 +292,18 @@ Use the first column's SHA (for an *annotated* tag, `git ls-remote` also
 prints a `refs/tags/v7^{}` line — use that dereferenced commit SHA, not the
 tag object's own SHA).
 
+## Fuzzing and Seed Corpora
+
+Fuzz targets build their initial seed corpora from the committed golden vectors via `scripts/gen_fuzz_corpus.go`.
+
+To regenerate the fuzz seed corpus locally after updating or adding vectors:
+
+```sh
+go run ./scripts/gen_fuzz_corpus.go
+```
+
+CI verifies that the committed corpus under `testdata/fuzz/` remains in sync with the golden vectors, failing if any discrepancy is detected.
+
 ## Golden vectors
 
 `testdata/vectors/*.json` are generated, committed artefacts. They are the

@@ -137,6 +137,28 @@ jobs:
             echo "::endgroup::"
           done
           exit "$failed"
+  fuzz-corpus:
+    name: fuzz seed corpus generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: generate fuzz corpus from vectors
+        run: go run ./scripts/gen_fuzz_corpus.go
+      - name: fail if fuzz corpus is out of sync
+        run: |
+          if ! git diff --exit-code testdata/fuzz; then
+            echo
+            echo "The committed fuzz seed corpus differs from freshly generated vectors."
+            echo "Regenerate the corpus with:"
+            echo "  go run ./scripts/gen_fuzz_corpus.go"
+            echo "and commit the result."
+            exit 1
+          fi
+
   golden-drift:
     name: golden vectors are reproducible
     runs-on: ubuntu-latest
