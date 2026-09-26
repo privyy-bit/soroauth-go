@@ -322,13 +322,30 @@ node gen.mjs
 
 Then commit the regenerated files together with the generator change.
 
+## Fuzzing and Seed Corpora
+
+Every fuzz target has an associated seed corpus located in `testdata/fuzz/`, which is automatically generated from the golden vectors via `cmd/gencorpus`.
+
+To regenerate the fuzz corpus locally:
+
+```sh
+go run ./cmd/gencorpus
+```
+
+To run a fuzz target with the seed corpus:
+
+```sh
+go test -fuzz=FuzzAuthorizeEntry -fuzztime=30s .
+```
+
+CI checks that the committed corpus matches the generated output and fails on drift.
+
 ### Versioning the vector schema and reproducing failures
 
 Every golden vector carries an explicit `schema_version` field (currently `1`). The loader (`golden_test.go`) explicitly checks this version and rejects any unknown or missing schema version rather than guessing or ignoring removed/reinterpreted fields.
 
 - **Bumping the version:** When a protocol change or schema evolution requires altering the structure of golden vectors, increment `schema_version` in both the generator (`testdata/gen/gen.mjs`) and all committed vector JSON files under `testdata/vectors/`, and update the expected version check in `golden_test.go`.
 - **Reproducing a failure locally:** If a vector fails schema validation or drifts from the reference implementation, run `go test -run TestGoldenVectors` (or `make vectors-check`) from the repository root. The test suite will fail loudly, naming the vector and the exact mismatch or unsupported schema version.
-
 If a vector disagrees with the Go code, the Go code is wrong until proven
 otherwise. If you believe the vector itself is wrong, stop and open an issue
 saying why, with the protocol reference — do not change it to make a test pass.
