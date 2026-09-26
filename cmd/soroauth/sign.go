@@ -21,6 +21,11 @@ usage:
   soroauth sign --entry <base64|-> --valid-until <ledger> --network <name|passphrase> \
                 --secret-env <VAR> [--for <address>] [--json]
 
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
+
+  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. Given an envelope it signs every
 authorization entry the envelope carries and prints the envelope back; a
