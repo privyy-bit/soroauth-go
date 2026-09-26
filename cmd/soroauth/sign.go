@@ -26,11 +26,6 @@ Subcommands support reading entries from stdin using --entry - so commands compo
   soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
     soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
 
-Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
-
-  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
-    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
-
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. Given an envelope it signs every
 authorization entry the envelope carries and prints the envelope back; a
@@ -107,7 +102,7 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--valid-until is required and must be greater than zero"))
 	}
 	if *secretEnv == "" {
-		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--secret-env is required"))
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--secret-env is required: name the environment variable holding the seed"))
 	}
 
 	seed := getenv(*secretEnv)
