@@ -316,12 +316,12 @@ Then commit the regenerated files together with the generator change.
 
 ## Fuzzing and Seed Corpora
 
-Every fuzz target has an associated seed corpus located in `testdata/fuzz/`, which is automatically generated from the golden vectors via `scripts/gencorpus`.
+Every fuzz target has an associated seed corpus located in `testdata/fuzz/`, which is automatically generated from the golden vectors via `cmd/gencorpus`.
 
 To regenerate the fuzz corpus locally:
 
 ```sh
-go run ./scripts/gencorpus
+go run ./cmd/gencorpus
 ```
 
 To run a fuzz target with the seed corpus:

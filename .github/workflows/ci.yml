@@ -180,12 +180,12 @@ jobs:
           check-latest: true
       - name: verify fuzz corpora are up to date
         run: |
-          go run ./scripts/gencorpus
+          go run ./cmd/gencorpus
           if ! git diff --exit-code testdata/fuzz;
           then
             echo
             echo "The fuzz corpora differ from freshly generated ones."
-            echo "Regenerate them with: go run ./scripts/gencorpus"
+            echo "Regenerate them with: go run ./cmd/gencorpus"
             echo "and commit the result."
             exit 1
           fi
