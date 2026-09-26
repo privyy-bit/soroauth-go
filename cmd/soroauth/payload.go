@@ -17,7 +17,7 @@ import (
 const payloadUsage = `soroauth payload — print what a signer would have to sign.
 
 usage:
-  soroauth payload --entry <base64> --valid-until <ledger> --network <name|passphrase> [--json]
+  soroauth payload --entry <base64|-> --valid-until <ledger> --network <name|passphrase> [--json]
 
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. An envelope produces one report per
