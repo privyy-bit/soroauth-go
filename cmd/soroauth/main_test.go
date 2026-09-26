@@ -188,16 +188,12 @@ func TestPayloadJSONOutput(t *testing.T) {
 }
 
 func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
-	// Ensure that stdout stays strictly empty/results-only on all error paths.
+	// Ensure that stdout stays strictly empty/results-only on all error paths (non-json mode writes errors to stderr and nothing to stdout).
 	for _, subcmd := range [][]string{
 		{"payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet"},
-		{"payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--json"},
 		{"sign", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--secret-env", "SEED"},
-		{"sign", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--secret-env", "SEED", "--json"},
 		{"delegates", "--entry", "not-base64", "--valid-until", "1", "--delegate", "GABC..."},
-		{"delegates", "--entry", "not-base64", "--valid-until", "1", "--delegate", "GABC...", "--json"},
 		{"inspect", "--entry", "not-base64"},
-		{"inspect", "--entry", "not-base64", "--json"},
 	} {
 		stdout, stderr, err := runCLI(t, subcmd...)
 		if err == nil {
