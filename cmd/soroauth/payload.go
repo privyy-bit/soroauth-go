@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 
@@ -16,7 +17,7 @@ import (
 const payloadUsage = `soroauth payload — print what a signer would have to sign.
 
 usage:
-  soroauth payload --entry <base64> --valid-until <ledger> --network <name|passphrase> [--json]
+  soroauth payload --entry <base64|-> --valid-until <ledger> --network <name|passphrase> [--json]
 
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. An envelope produces one report per
@@ -53,6 +54,10 @@ type envelopePayloadOutput struct {
 }
 
 func runPayload(args []string, stdout, stderr io.Writer) error {
+	return runPayloadWithStdin(args, stdout, stderr, os.Stdin)
+}
+
+func runPayloadWithStdin(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 	flags := flag.NewFlagSet("payload", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
@@ -61,7 +66,7 @@ func runPayload(args []string, stdout, stderr io.Writer) error {
 		flags.PrintDefaults()
 	}
 
-	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR")
+	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR or -")
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
 	jsonFlag := flags.Bool("json", false, "output as JSON")
@@ -70,7 +75,12 @@ func runPayload(args []string, stdout, stderr io.Writer) error {
 		return newErrorf(ExitUsageError, "%w", err)
 	}
 
-	input, err := decodeEntryOrEnvelope(*entryFlag)
+	resolvedEntry, err := resolveEntryArg(*entryFlag, stdin)
+	if err != nil {
+		return writeJSONError(stdout, *jsonFlag, err)
+	}
+
+	input, err := decodeEntryOrEnvelope(resolvedEntry)
 	if err != nil {
 		return writeJSONError(stdout, *jsonFlag, err)
 	}
