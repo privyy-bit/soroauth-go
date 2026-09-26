@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/soroauth/soroauth-go"
 )
@@ -12,9 +13,14 @@ import (
 const inspectUsage = `soroauth inspect — print an entry's structure as JSON.
 
 usage:
-  soroauth inspect --entry <base64> [--json]
+  soroauth inspect --entry <base64|-> [--json]
 
---entry accepts either an authorization entry or a whole transaction envelope,
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
+
+  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+
+Reports an entry's credential type,
 and the tool works out which it was given. An envelope is reported as an array,
 one object per authorization entry, each with the operation_index and
 entry_index it came from; a fee-bump envelope is read through to the inner
@@ -45,6 +51,10 @@ exit codes:
 `
 
 func runInspect(args []string, stdout, stderr io.Writer) error {
+	return runInspectWithStdin(args, stdout, stderr, os.Stdin)
+}
+
+func runInspectWithStdin(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 	flags := flag.NewFlagSet("inspect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
@@ -53,7 +63,7 @@ func runInspect(args []string, stdout, stderr io.Writer) error {
 		flags.PrintDefaults()
 	}
 
-	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR")
+	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR or -")
 	// inspect's success output is already the JSON report described above;
 	// --json exists only so every subcommand accepts the same flag, and here
 	// it additionally makes a usage or decode error come back as a JSON
@@ -65,7 +75,12 @@ func runInspect(args []string, stdout, stderr io.Writer) error {
 		return newErrorf(ExitUsageError, "%w", err)
 	}
 
-	input, err := decodeEntryOrEnvelope(*entryFlag)
+	resolvedEntry, err := resolveEntryArg(*entryFlag, stdin)
+	if err != nil {
+		return writeJSONError(stdout, *jsonFlag, err)
+	}
+
+	input, err := decodeEntryOrEnvelope(resolvedEntry)
 	if err != nil {
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "%w", err))
 	}
