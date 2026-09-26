@@ -17,6 +17,11 @@ usage:
   soroauth delegates --entry <base64|-> --valid-until <ledger> \
                      --delegate <address> [--delegate <address> ...] [--json]
 
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
+
+  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+
 Converts an ADDRESS or ADDRESS_V2 entry into ADDRESS_WITH_DELEGATES (CAP-71-01),
 with the delegates sorted into the order the protocol requires. Pass --delegate
 once per address; the order they are given in does not matter.
