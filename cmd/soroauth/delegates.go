@@ -14,7 +14,7 @@ import (
 const delegatesUsage = `soroauth delegates — wrap an entry in a delegated-signer credential.
 
 usage:
-  soroauth delegates --entry <base64> --valid-until <ledger> \
+  soroauth delegates --entry <base64|-> --valid-until <ledger> \
                      --delegate <address> [--delegate <address> ...] [--json]
 
 Converts an ADDRESS or ADDRESS_V2 entry into ADDRESS_WITH_DELEGATES (CAP-71-01),
