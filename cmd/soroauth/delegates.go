@@ -20,7 +20,7 @@ Converts an ADDRESS or ADDRESS_V2 entry into ADDRESS_WITH_DELEGATES (CAP-71-01),
 with the delegates sorted into the order the protocol requires. Pass --delegate
 once per address; the order they are given in does not matter.
 
-Nested delegates are supported via the library or --nested-json.
+Nested delegates are supported via the library or --nested-json (note that arbitrary nesting limits are managed by the library).
 
 The delegate signatures are left as placeholders. Fill each one afterwards with:
 
