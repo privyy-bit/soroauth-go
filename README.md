@@ -23,6 +23,13 @@ The CLI:
 go install github.com/soroauth/soroauth-go/cmd/soroauth@latest
 ```
 
+Subcommands support reading entries from stdin using `--entry -` so commands compose in pipelines:
+
+```sh
+soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+  soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+```
+
 Requires Go 1.25.0 or later, and `github.com/stellar/go-stellar-sdk` v0.7.3 or
 later.
 
@@ -86,6 +93,14 @@ terminal program, not something a script drives, so it has no `--json` mode.
 | `tree` | (the `EntryInfo` struct, same shape as `inspect`; without `--json` it prints an ASCII or DOT rendering instead) | `error` |
 | `doctor` | `checks`, `ok` | (checks carry their own `pass`/`detail`; see below) |
 | `cross-compile` | `target`, `size`, `sha256` (one per line) | `error` |
+
+### Worked invocation — Pipeline composition and JSON output
+
+```sh
+# Wrap an entry with delegates and pipe directly into sign
+soroauth delegates --entry <base64> --valid-until 1234567 --delegate GABC... | \
+  SEED=SABC... soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED
+```
 
 ### Worked invocation — JSON output
 
