@@ -79,10 +79,12 @@ commands:
   sign           sign an entry with a seed read from an environment variable
   delegates      wrap an entry in a delegated-signer credential
   inspect        print an entry's structure as JSON
+  verify         check an entry's signatures without submitting it
   tree           render an entry's delegate tree as ASCII, DOT, or JSON
   tui            interactive TUI for inspecting and signing an entry
   doctor         check the local environment for common first-run problems
   cross-compile  build soroauth for multiple targets
+  completions    emit a shell completion script (bash, zsh, fish)
 
 run "soroauth <command> -h" for the flags of a command.
 
@@ -112,11 +114,6 @@ func main() {
 // environment, and a test must be able to supply one without mutating the real
 // environment of the test binary.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
-	return runWithStdin(args, stdout, stderr, getenv, os.Stdin)
-}
-
-// runWithStdin allows injecting custom stdin for tests.
-func runWithStdin(args []string, stdout, stderr io.Writer, getenv func(string) string, stdin io.Reader) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return newErrorf(ExitUsageError, "no command given")
@@ -124,13 +121,15 @@ func runWithStdin(args []string, stdout, stderr io.Writer, getenv func(string) s
 
 	switch args[0] {
 	case "payload":
-		return runPayloadWithStdin(args[1:], stdout, stderr, stdin)
+		return runPayload(args[1:], stdout, stderr)
 	case "sign":
-		return runSignWithStdin(args[1:], stdout, stderr, getenv, stdin)
+		return runSign(args[1:], stdout, stderr, getenv)
 	case "delegates":
-		return runDelegatesWithStdin(args[1:], stdout, stderr, stdin)
+		return runDelegates(args[1:], stdout, stderr)
 	case "inspect":
-		return runInspectWithStdin(args[1:], stdout, stderr, stdin)
+		return runInspect(args[1:], stdout, stderr)
+	case "verify":
+		return runVerify(args[1:], stdout, stderr)
 	case "tree":
 		return runTree(args[1:], stdout, stderr)
 	case "tui":
@@ -139,6 +138,8 @@ func runWithStdin(args []string, stdout, stderr io.Writer, getenv func(string) s
 		return runDoctor(args[1:], stdout, stderr, getenv)
 	case "cross-compile":
 		return runCrossCompile(args[1:], stdout, stderr)
+	case "completions":
+		return runCompletions(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return nil
@@ -165,6 +166,18 @@ func resolveNetwork(value string) (string, error) {
 	}
 }
 
+// readEntryFlag reads the entry value from stdin if value is "-", otherwise returns value.
+func readEntryFlag(value string) (string, error) {
+	if value != "-" {
+		return value, nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("reading from stdin: %w", err)
+	}
+	return string(data), nil
+}
+
 // decodeEntry parses a base64 authorization entry from a flag value.
 //
 // The entry comes from the command line, which means it came from somewhere
@@ -178,7 +191,11 @@ func decodeEntry(value string) (xdr.SorobanAuthorizationEntry, error) {
 	if value == "" {
 		return xdr.SorobanAuthorizationEntry{}, newErrorf(ExitUsageError, "--entry is required")
 	}
-	entry, err := soroauth.DecodeAuthorizationEntry(value)
+	val, err := readEntryFlag(value)
+	if err != nil {
+		return xdr.SorobanAuthorizationEntry{}, newErrorf(ExitUsageError, "%w", err)
+	}
+	entry, err := soroauth.DecodeAuthorizationEntry(val)
 	if err != nil {
 		return xdr.SorobanAuthorizationEntry{}, newErrorf(ExitUsageError, "decoding --entry: %w", err)
 	}
@@ -208,12 +225,16 @@ func decodeEntryOrEnvelope(value string) (decodedInput, error) {
 	if value == "" {
 		return decodedInput{}, newErrorf(ExitUsageError, "--entry is required")
 	}
+	val, err := readEntryFlag(value)
+	if err != nil {
+		return decodedInput{}, newErrorf(ExitUsageError, "%w", err)
+	}
 
 	var envelope xdr.TransactionEnvelope
-	envelopeErr := xdr.SafeUnmarshalBase64(value, &envelope)
+	envelopeErr := xdr.SafeUnmarshalBase64(val, &envelope)
 
 	var entry xdr.SorobanAuthorizationEntry
-	entryErr := xdr.SafeUnmarshalBase64(value, &entry)
+	entryErr := xdr.SafeUnmarshalBase64(val, &entry)
 
 	// An envelope only wins when it decodes and carries an invokeHostFunction
 	// operation. A blob that decodes as an envelope but has nothing to
