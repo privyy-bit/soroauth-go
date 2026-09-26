@@ -563,6 +563,18 @@ func TestExitCodesJSONMode(t *testing.T) {
 // TestExitCodeSuccess verifies that successful commands exit with code 0.
 func TestPipelineFailureOutputsCleanStdout(t *testing.T) {
 	var out, errOut bytes.Buffer
+	stdin := strings.NewReader("not-valid-base64\n")
+	err := runWithStdin([]string{"payload", "--entry", "-", "--network", "testnet"}, &out, &errOut, func(string) string { return "" }, stdin)
+	if err == nil {
+		t.Fatal("expected error on invalid pipeline input, got nil")
+	}
+	if out.String() != "" {
+		t.Errorf("expected stdout to stay empty on failure path, got %q", out.String())
+	}
+}
+
+func TestPipelineFailureOutputsCleanStdoutLegacy(t *testing.T) {
+	var out, errOut bytes.Buffer
 	// Simulate piping invalid data via stdin or triggering a failure path
 	stdin := strings.NewReader("not-valid-base64\n")
 	err := runWithStdin([]string{"payload", "--entry", "-", "--network", "testnet"}, &out, &errOut, func(string) string { return "" }, stdin)
