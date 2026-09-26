@@ -15,7 +15,12 @@ const inspectUsage = `soroauth inspect — print an entry's structure as JSON.
 usage:
   soroauth inspect --entry <base64|-> [--json]
 
---entry accepts either an authorization entry or a whole transaction envelope,
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
+
+  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+
+Reports an entry's credential type,
 and the tool works out which it was given. An envelope is reported as an array,
 one object per authorization entry, each with the operation_index and
 entry_index it came from; a fee-bump envelope is read through to the inner
