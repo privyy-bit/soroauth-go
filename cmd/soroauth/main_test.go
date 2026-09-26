@@ -187,6 +187,22 @@ func TestPayloadJSONOutput(t *testing.T) {
 	}
 }
 
+func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
+	stdout, stderr, err := runCLI(t, "payload",
+		"--entry", "not-base64",
+		"--valid-until", "1",
+		"--network", "testnet")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Errorf("stdout should be completely empty on failure path, got: %q", stdout)
+	}
+	if stderr == "" {
+		t.Error("expected errors on stderr")
+	}
+}
+
 func TestPayloadJSONErrorStaysOnStdout(t *testing.T) {
 	// On error with --json, stdout must contain only the JSON error object,
 	// nothing else (no usage text, no partial output).
