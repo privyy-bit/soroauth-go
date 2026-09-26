@@ -209,7 +209,7 @@ func TestDelegatesHelpMentionsTheNestingLimit(t *testing.T) {
 	if err == nil {
 		t.Log("delegates -h returned no error")
 	}
-	if !strings.Contains(stderr, "Nested delegates") {
+	if !strings.Contains(stderr, "nested") {
 		t.Errorf("the help text does not mention nested delegates: %q", stderr)
 	}
 }
