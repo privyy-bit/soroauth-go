@@ -18,7 +18,7 @@ import (
 const signUsage = `soroauth sign — sign an authorization entry.
 
 usage:
-  soroauth sign --entry <base64> --valid-until <ledger> --network <name|passphrase> \
+  soroauth sign --entry <base64|-> --valid-until <ledger> --network <name|passphrase> \
                 (--secret-env <VAR> | --assertion <file|->) [--for <address>] [--json]
 
 --entry accepts either an authorization entry or a whole transaction envelope,
