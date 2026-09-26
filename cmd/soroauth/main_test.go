@@ -188,6 +188,19 @@ func TestPayloadJSONOutput(t *testing.T) {
 }
 
 func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
+	// Test explicitly that stdout stays completely clean/empty on various failure paths.
+	// Invalid entry argument:
+	stdout, stderr, err := runCLI(t, "payload", "--entry", "invalid-base64", "--valid-until", "1234567", "--network", "testnet")
+	if err == nil {
+		t.Fatal("expected error for invalid base64 entry")
+	}
+	if stdout != "" {
+		t.Errorf("stdout expected to be empty on failure, got %q", stdout)
+	}
+	if stderr == "" {
+		t.Errorf("stderr expected to have error output, got empty")
+	}
+
 	// Ensure that stdout stays strictly empty/results-only on all error paths (non-json mode writes errors to stderr and nothing to stdout).
 	for _, subcmd := range [][]string{
 		{"payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet"},
@@ -208,7 +221,7 @@ func TestStdoutResultsOnlyOnFailurePaths(t *testing.T) {
 	}
 
 	// Also test JSON failure output paths to ensure stdout only carries JSON error object and not usage text or trailing junk
-	stdout, _, err := runCLI(t, "payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--json")
+	stdout, _, err = runCLI(t, "payload", "--entry", "not-base64", "--valid-until", "1", "--network", "testnet", "--json")
 	if err == nil {
 		t.Fatal("expected failure")
 	}
