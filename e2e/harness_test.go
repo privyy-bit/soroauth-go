@@ -142,8 +142,8 @@ func (h *harness) deployAndFundFixture(t *testing.T, deployer *keypair.Full, was
 
 	acc := h.account(t, deployer.Address())
 	op := txnbuild.CreateContract{
-		Wasm:           wasm,
-		SourceAccount:  deployer.Address(),
+		Wasm:            wasm,
+		SourceAccount:   deployer.Address(),
 		ConstructorArgs: constructorArgs,
 	}
 
@@ -191,15 +191,7 @@ func (h *harness) deployAndFundFixture(t *testing.T, deployer *keypair.Full, was
 	}
 
 	var contractID string
-	if v2, ok := meta.GetV2(); ok {
-		for _, change := range v2.Changes {
-			if sc, ok := change.GetLedgerEntryChangeCreated(); ok {
-				if contract, ok := sc.Data.GetContractData(); ok {
-					// contract ID can be extracted
-				}
-			}
-		}
-	}
+
 	// Alternatively, use stellar-sdk or compute contract ID from deployer + salt, or fetch from transaction meta LedgerEntryChanges.
 	// Let's use standard stellar-sdk contract ID derivation or extract from LedgerEntryChanges created.
 	contractID, err = extractContractIDFromMeta(meta)
@@ -230,9 +222,6 @@ func extractContractIDFromMeta(meta xdr.TransactionMeta) (string, error) {
 		}
 	}
 	for _, change := range changes {
-		var entry *xdr.LedgerEntry
-		if change.Endpoints != nil { // depending on go-xdr version, inspect LedgerEntryChange fields
-		}
 		// Safe way using SDK helper or inspecting Created/Updated
 		ledEntry, ok := change.GetCreated()
 		if ok {
