@@ -74,7 +74,7 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
 	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the S… seed")
-	assertionFlag := flags.String("assertion", "", "path to a WebAuthn assertion JSON file, or - for stdin")
+
 	forAddress := flags.String("for", "", "credential node to sign, when it is not the signer's own address")
 	jsonFlag := flags.Bool("json", false, "output as JSON")
 
@@ -98,43 +98,26 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	if *validUntil == 0 {
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--valid-until is required and must be greater than zero"))
 	}
-	if (*secretEnv == "" && *assertionFlag == "") || (*secretEnv != "" && *assertionFlag != "") {
-		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "exactly one of --secret-env or --assertion must be provided"))
+	if *secretEnv == "" {
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--secret-env is required"))
 	}
 
-	var signer soroauth.Signer
-	if *secretEnv != "" {
-		seed := getenv(*secretEnv)
-		if seed == "" {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "environment variable %s is empty or unset", *secretEnv))
-		}
-
-		// keypair.Parse's error can quote what it was given, so it is deliberately
-		// not wrapped: the message names the variable, never its contents.
-		parsed, err := keypair.Parse(seed)
-		if err != nil {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "the value of %s is not a valid Stellar key", *secretEnv))
-		}
-		full, ok := parsed.(*keypair.Full)
-		if !ok {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "the value of %s is a public key; a secret seed (S…) is required", *secretEnv))
-		}
-		signer = soroauth.NewEd25519Signer(full)
-	} else {
-		assertionBytes, err := readAssertionInput(*assertionFlag)
-		if err != nil {
-			return writeJSONError(stdout, *jsonFlag, err)
-		}
-		var assertion soroauth.PasskeyAssertion
-		if err := json.Unmarshal(assertionBytes, &assertion); err != nil {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "malformed assertion JSON: %w", err))
-		}
-		passkeySigner, err := soroauth.NewPasskeySigner(assertion.RawID, assertion.ClientDataJSON, assertion.AuthenticatorData, assertion.Signature)
-		if err != nil {
-			return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "invalid passkey assertion: %w", err))
-		}
-		signer = passkeySigner
+	seed := getenv(*secretEnv)
+	if seed == "" {
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "environment variable %s is empty or unset", *secretEnv))
 	}
+
+	// keypair.Parse's error can quote what it was given, so it is deliberately
+	// not wrapped: the message names the variable, never its contents.
+	parsed, err := keypair.Parse(seed)
+	if err != nil {
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "the value of %s is not a valid Stellar key", *secretEnv))
+	}
+	full, ok := parsed.(*keypair.Full)
+	if !ok {
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "the value of %s is a public key; a secret seed (S…) is required", *secretEnv))
+	}
+	signer := soroauth.NewEd25519Signer(full)
 
 	// An envelope carries entries for whatever addresses simulation recorded,
 	// so a single target address would be ambiguous: it would have to apply to
