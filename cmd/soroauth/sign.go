@@ -26,6 +26,11 @@ Subcommands support reading entries from stdin using --entry - so commands compo
   soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
     soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
 
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
+
+  soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
+    soroauth sign --entry - --valid-until 1234567 --network testnet --secret-env SEED --for GABC...
+
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. Given an envelope it signs every
 authorization entry the envelope carries and prints the envelope back; a
@@ -78,8 +83,6 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
 	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the S… seed")
-	assertionFlag := flags.String("assertion", "", "optional passkey or auth assertion file or -")
-
 	forAddress := flags.String("for", "", "credential node to sign, when it is not the signer's own address")
 	jsonFlag := flags.Bool("json", false, "output as JSON")
 
@@ -108,11 +111,8 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	}
 
 	seed := getenv(*secretEnv)
-	if seed == "" && *assertionFlag == "" {
+	if seed == "" {
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "environment variable %s is empty or unset", *secretEnv))
-	}
-	if *assertionFlag != "" {
-		_, _ = resolveEntryArg(*assertionFlag, stdin)
 	}
 
 	// keypair.Parse's error can quote what it was given, so it is deliberately
