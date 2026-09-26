@@ -77,7 +77,7 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 	entryFlag := flags.String("entry", "", "the authorization entry or transaction envelope, as base64 XDR or -")
 	validUntil := flags.Uint("valid-until", 0, "the last ledger at which the signature is valid")
 	networkFlag := flags.String("network", "", "testnet, public, or a literal network passphrase")
-	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the seed")
+	secretEnv := flags.String("secret-env", "", "name of the environment variable holding the signing seed (S…)")
 	forAddress := flags.String("for", "", "credential node to sign, when it is not the signer's own address")
 	jsonFlag := flags.Bool("json", false, "output as JSON")
 
