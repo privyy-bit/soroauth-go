@@ -102,7 +102,7 @@ func runSignWithStdin(args []string, stdout, stderr io.Writer, getenv func(strin
 		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--valid-until is required and must be greater than zero"))
 	}
 	if *secretEnv == "" {
-		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--secret-env is required: name the environment variable holding the seed"))
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "--secret-env is required"))
 	}
 
 	seed := getenv(*secretEnv)
