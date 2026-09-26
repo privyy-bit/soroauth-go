@@ -19,7 +19,7 @@ const signUsage = `soroauth sign — sign an authorization entry.
 
 usage:
   soroauth sign --entry <base64|-> --valid-until <ledger> --network <name|passphrase> \
-                (--secret-env <VAR> | --assertion <file|->) [--for <address>] [--json]
+                --secret-env <VAR> [--for <address>] [--json]
 
 --entry accepts either an authorization entry or a whole transaction envelope,
 and the tool works out which it was given. Given an envelope it signs every
@@ -34,8 +34,7 @@ resource fees. This command signs entries only — it does not simulate, and it
 does not sign the envelope itself, which is the source account's (or the
 fee-bump fee source's) signature, not an authorization entry.
 
-The signing seed is read from the environment variable named by --secret-env,
-or a WebAuthn assertion JSON is read from a file or stdin via --assertion.
+The signing seed is read from the environment variable named by --secret-env.
 There is deliberately no flag that takes a seed as a value: a flag value ends up
 in shell history, in the process table, and in any transcript of the session.
 
