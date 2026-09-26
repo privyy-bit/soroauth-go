@@ -15,6 +15,8 @@ const inspectUsage = `soroauth inspect — print an entry's structure as JSON.
 usage:
   soroauth inspect --entry <base64|-> [--json]
 
+Subcommands support reading entries from stdin using --entry - so commands compose in pipelines.
+
 Subcommands support reading entries from stdin using --entry - so commands compose in pipelines:
 
   soroauth delegates --entry entry.b64 --valid-until 1234567 --delegate GABC... | \
