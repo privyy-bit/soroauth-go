@@ -112,6 +112,11 @@ func main() {
 // environment, and a test must be able to supply one without mutating the real
 // environment of the test binary.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	return runWithStdin(args, stdout, stderr, getenv, os.Stdin)
+}
+
+// runWithStdin allows injecting custom stdin for tests.
+func runWithStdin(args []string, stdout, stderr io.Writer, getenv func(string) string, stdin io.Reader) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return newErrorf(ExitUsageError, "no command given")
@@ -119,13 +124,13 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 
 	switch args[0] {
 	case "payload":
-		return runPayload(args[1:], stdout, stderr)
+		return runPayloadWithStdin(args[1:], stdout, stderr, stdin)
 	case "sign":
-		return runSign(args[1:], stdout, stderr, getenv)
+		return runSignWithStdin(args[1:], stdout, stderr, getenv, stdin)
 	case "delegates":
-		return runDelegates(args[1:], stdout, stderr)
+		return runDelegatesWithStdin(args[1:], stdout, stderr, stdin)
 	case "inspect":
-		return runInspect(args[1:], stdout, stderr)
+		return runInspectWithStdin(args[1:], stdout, stderr, stdin)
 	case "tree":
 		return runTree(args[1:], stdout, stderr)
 	case "tui":
