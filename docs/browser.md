@@ -57,9 +57,9 @@ not repeated here.
 
 ## CDN Layout & Subresource Integrity
 
-For bundler-free deployments, artifacts are published to a CDN-friendly
-layout with versioned, immutable paths. Pinning an explicit version instead of
-using a mutable `latest` alias avoids supply-chain risks.
+For bundler-free deployments, artifacts are published to a CDN-friendly layout
+with versioned, immutable paths. Pinning an explicit version instead of using a
+mutable `latest` alias avoids supply-chain risks.
 
 ```html
 <!-- Load the exact runtime shim version -->
