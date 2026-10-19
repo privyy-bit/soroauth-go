@@ -57,12 +57,17 @@ not repeated here.
 
 ## CDN Layout & Subresource Integrity
 
-For bundler-free deployments, artifacts are published to a CDN-friendly layout with versioned, immutable paths. Pinning an explicit version instead of using a mutable `latest` alias avoids supply-chain risks.
+For bundler-free deployments, artifacts are published to a CDN-friendly
+layout with versioned, immutable paths. Pinning an explicit version instead of
+using a mutable `latest` alias avoids supply-chain risks.
 
 ```html
 <!-- Load the exact runtime shim version -->
-<script src="https://cdn.jsdelivr.net/npm/@soroauth/wasm@0.1.0/dist/wasm_exec.js"
-        integrity="sha384-…" crossorigin="anonymous"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/@soroauth/wasm@0.1.0/dist/wasm_exec.js"
+  integrity="sha384-…"
+  crossorigin="anonymous"
+></script>
 <script type="module">
   import { loadSoroauth } from "https://cdn.jsdelivr.net/npm/@soroauth/wasm@0.1.0/dist/index.js";
   const soroauth = await loadSoroauth({
@@ -73,7 +78,9 @@ For bundler-free deployments, artifacts are published to a CDN-friendly layout w
 </script>
 ```
 
-Always verify and publish Subresource Integrity (SRI) hashes alongside each release artifact so pages can enforce strict cryptographic pinning of the loaded WASM and JS glue.
+Always verify and publish Subresource Integrity (SRI) hashes alongside each
+release artifact so pages can enforce strict cryptographic pinning of the loaded
+WASM and JS glue.
 
 Every failure is a thrown `SoroauthError` carrying the module's own message;
 there are no numeric error codes.
