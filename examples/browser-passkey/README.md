@@ -1,4 +1,4 @@
-# Browser Passkey Example
+# Passkey Wallet Browser Demo
 
 A self-contained browser page that signs a Soroban authorization entry with a
 WebAuthn passkey, deriving the payload **in the browser** with the
