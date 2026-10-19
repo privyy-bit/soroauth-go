@@ -77,10 +77,9 @@ the backend holds the fee payer.
 
 ## How to run it
 
-The page supports both local development builds and CDN-friendly layouts with versioned immutable paths and Subresource Integrity hashes. It needs to fetch the WASM file, which a `file://` page usually cannot do,
+It needs to fetch the WASM file, which a `file://` page usually cannot do,
 and WebAuthn requires a secure context (`https://` or `http://localhost`). Build
 the core and serve the repository over localhost:
-
 ```sh
 ./wasm/build.sh            # writes wasm/dist/soroauth.wasm + wasm_exec.js
 python3 -m http.server 8000
