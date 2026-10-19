@@ -77,7 +77,7 @@ the backend holds the fee payer.
 
 ## How to run it
 
-The page needs to fetch the WASM file, which a `file://` page usually cannot do,
+The page supports both local development builds and CDN-friendly layouts with versioned immutable paths and Subresource Integrity hashes. It needs to fetch the WASM file, which a `file://` page usually cannot do,
 and WebAuthn requires a secure context (`https://` or `http://localhost`). Build
 the core and serve the repository over localhost:
 
