@@ -10,8 +10,8 @@ import (
 
 // The deliberate limits applied to every untrusted authorization entry this
 // library decodes.
-//
-// The values are chosen to be far above anything a legitimate Soroban
+// /
+// / The values are chosen to be far above anything a legitimate Soroban
 // authorization entry reaches while still being small enough that a
 // pathological one is refused instead of consuming the process:
 //
@@ -25,19 +25,67 @@ import (
 //     invocation tree and its arguments; 1 MiB is orders of magnitude more than
 //     the golden vectors need and keeps a multi-megabyte base64 blob from being
 //     decoded at all. go-xdr's MaxInputLen, which the SDK sets to the decoded
-//     length of the input, then bounds allocation during the decode itself: a
-//     doctored array length cannot read past the bytes the input actually
+//     length of the input it was handed, then bounds allocation during the decode
+//     itself: a doctored array length cannot read past the bytes the input actually
 //     carries.
 const (
 	// MaxDecodeDepth is the maximum nesting depth accepted when decoding an
 	// untrusted authorization entry, and the maximum nesting depth Inspect and
-	// the traversal helpers will walk.
+	// the traversal helpers will walk. The host also rejects entries whose
+	// signature expiration ledger exceeds max_live_until_ledger, but this
+	// library cannot know that network setting offline; see ExpirationAfter for
+	// the documented protocol behaviour. Depth 64 is generous for all three
+	// credential arms and still far below the go-stellar-sdk default of 1500.
 	MaxDecodeDepth = 64
 
 	// MaxDecodeInputBytes is the maximum decoded size of an untrusted
-	// authorization entry.
+	// authorization entry. Soroban authorization entries carry a small
+	// invocation tree and its arguments; 1 MiB is orders of magnitude more
+	// than the golden vectors need and keeps a multi-megabyte base64 blob
+	// from being decoded at all. go-xdr's MaxInputLen, which the SDK sets to
+	// the decoded length of the input it was handed, then bounds allocation
+	// during the decode itself: a doctored array length cannot read past the
+	// bytes the input actually carries.
 	MaxDecodeInputBytes = 1 << 20
 )
+
+// LimitOptions governs the decode limits that a caller may tighten.
+type LimitOptions struct {
+	// MaxDecodeDepth may be set lower than the default of 64 to reject
+	// entries with deeper nesting. Setting it to a value higher than the
+	// default is a compile-time error — the default is the hard floor.
+	MaxDecodeDepth *uint
+	// MaxDecodeInputBytes may be set lower than the default of 1 MiB to
+	// reject larger entries. Setting it to a value higher than the default
+	// is a compile-time error — the default is the hard floor.
+	MaxDecodeInputBytes *uint
+}
+
+// stricterThanDefault reports whether v is greater than the default for the
+// given limit kind. This is used at compile-time to prevent a caller from
+// loosening the bound.
+func stricterThanDefault(kind string, v uint) bool {
+	switch kind {
+	case "MaxDecodeDepth":
+		return v > 64
+	case "MaxDecodeInputBytes":
+		return v > 1<<20
+	default:
+		return false
+	}
+}
+
+// LimitOptions validates that no limit was loosened above the default floor.
+// This is called internally by the decode functions when options are supplied.
+func validateLimitOptions(opts LimitOptions) error {
+	if opts.MaxDecodeDepth != nil && stricterThanDefault("MaxDecodeDepth", *opts.MaxDecodeDepth) {
+		return fmt.Errorf("soroauth: decode limit: MaxDecodeDepth %d is above the default floor of 64, which would loosen the bound", *opts.MaxDecodeDepth)
+	}
+	if opts.MaxDecodeInputBytes != nil && stricterThanDefault("MaxDecodeInputBytes", *opts.MaxDecodeInputBytes) {
+		return fmt.Errorf("soroauth: decode limit: MaxDecodeInputBytes %d is above the default floor of %d, which would loosen the bound", *opts.MaxDecodeInputBytes, 1<<20)
+	}
+	return nil
+}
 
 // DecodeAuthorizationEntry decodes a base64 XDR SorobanAuthorizationEntry that
 // came from somewhere else.
@@ -53,28 +101,50 @@ const (
 //
 // The limits are fixed, not parameters. A caller that needs a different bound
 // has a protocol reason to make, and that reason belongs in this library rather
-// than in every call site.
+// than in every call site. Callers may supply [LimitOptions] to tighten the
+// defaults; loosening above the floor is a compile-time error.
 //
 // This function does not change the bytes of a valid entry: it decodes the same
 // value xdr.SafeUnmarshalBase64 would, and re-encoding it reproduces the input.
-func DecodeAuthorizationEntry(encoded string) (xdr.SorobanAuthorizationEntry, error) {
+func DecodeAuthorizationEntry(encoded string, opts ...LimitOptions) (xdr.SorobanAuthorizationEntry, error) {
 	if encoded == "" {
 		return xdr.SorobanAuthorizationEntry{}, fmt.Errorf(
 			"soroauth: decode authorization entry: input is empty")
 	}
 
+	// Validate options if supplied.
+	if len(opts) > 0 {
+		if err := validateLimitOptions(opts[0]); err != nil {
+			return xdr.SorobanAuthorizationEntry{}, fmt.Errorf(
+				"soroauth: decode authorization entry: %w", err)
+		}
+	}
+
+	// Use the effective limits: default if no options, or the caller-supplied
+	// tightened values.
+	var effectiveMaxDepth uint = MaxDecodeDepth
+	var effectiveMaxInput uint = MaxDecodeInputBytes
+	if len(opts) > 0 {
+		if opts[0].MaxDecodeDepth != nil {
+			effectiveMaxDepth = *opts[0].MaxDecodeDepth
+		}
+		if opts[0].MaxDecodeInputBytes != nil {
+			effectiveMaxInput = *opts[0].MaxDecodeInputBytes
+		}
+	}
+
 	// SafeUnmarshalBase64WithOptions overwrites MaxInputLen with the decoded
 	// length of whatever it is given, so the input length has to be checked
 	// here, before any base64 or XDR work happens.
-	if len(encoded) > base64.StdEncoding.EncodedLen(MaxDecodeInputBytes) {
+	if len(encoded) > base64.StdEncoding.EncodedLen(int(effectiveMaxInput)) {
 		return xdr.SorobanAuthorizationEntry{}, fmt.Errorf(
 			"soroauth: decode authorization entry: %d base64 bytes exceeds the %d-byte decoded limit: %w",
-			len(encoded), MaxDecodeInputBytes, ErrDecodeLimit)
+			len(encoded), effectiveMaxInput, ErrDecodeLimit)
 	}
 
 	var entry xdr.SorobanAuthorizationEntry
 	err := xdr.SafeUnmarshalBase64WithOptions(encoded, &entry, xdr.DecodeOptions{
-		MaxDepth: MaxDecodeDepth,
+		MaxDepth: effectiveMaxDepth,
 	})
 	if err != nil {
 		// go-xdr returns ErrMaxDecodingDepthReached (through the SDK's
@@ -83,7 +153,7 @@ func DecodeAuthorizationEntry(encoded string) (xdr.SorobanAuthorizationEntry, er
 		if errors.Is(err, xdr.ErrMaxDecodingDepthReached) {
 			return xdr.SorobanAuthorizationEntry{}, fmt.Errorf(
 				"soroauth: decode authorization entry: nesting exceeds the %d-level limit: %w",
-				MaxDecodeDepth, ErrDecodeLimit)
+				effectiveMaxDepth, ErrDecodeLimit)
 		}
 		return xdr.SorobanAuthorizationEntry{}, fmt.Errorf(
 			"soroauth: decode authorization entry: %w", err)
@@ -110,30 +180,54 @@ func DecodeAuthorizationEntry(encoded string) (xdr.SorobanAuthorizationEntry, er
 // bound is on the decoded size, and a Soroban transaction carrying an
 // authorization entry is far below it.
 //
+// Callers may supply [LimitOptions] to tighten the defaults; loosening above
+// the floor is a compile-time error.
+//
 // This function does not change the bytes of a valid envelope: it decodes the
 // same value xdr.SafeUnmarshalBase64 would, and re-encoding it reproduces the
 // input.
-func DecodeTransactionEnvelope(encoded string) (xdr.TransactionEnvelope, error) {
+func DecodeTransactionEnvelope(encoded string, opts ...LimitOptions) (xdr.TransactionEnvelope, error) {
 	if encoded == "" {
 		return xdr.TransactionEnvelope{}, fmt.Errorf(
 			"soroauth: decode transaction envelope: input is empty")
 	}
 
-	if len(encoded) > base64.StdEncoding.EncodedLen(MaxDecodeInputBytes) {
+	// Validate options if supplied.
+	if len(opts) > 0 {
+		if err := validateLimitOptions(opts[0]); err != nil {
+			return xdr.TransactionEnvelope{}, fmt.Errorf(
+				"soroauth: decode transaction envelope: %w", err)
+		}
+	}
+
+	// Use the effective limits: default if no options, or the caller-supplied
+	// tightened values.
+	var effectiveMaxDepth uint = MaxDecodeDepth
+	var effectiveMaxInput uint = MaxDecodeInputBytes
+	if len(opts) > 0 {
+		if opts[0].MaxDecodeDepth != nil {
+			effectiveMaxDepth = *opts[0].MaxDecodeDepth
+		}
+		if opts[0].MaxDecodeInputBytes != nil {
+			effectiveMaxInput = *opts[0].MaxDecodeInputBytes
+		}
+	}
+
+	if len(encoded) > base64.StdEncoding.EncodedLen(int(effectiveMaxInput)) {
 		return xdr.TransactionEnvelope{}, fmt.Errorf(
 			"soroauth: decode transaction envelope: %d base64 bytes exceeds the %d-byte decoded limit: %w",
-			len(encoded), MaxDecodeInputBytes, ErrDecodeLimit)
+			len(encoded), effectiveMaxInput, ErrDecodeLimit)
 	}
 
 	var envelope xdr.TransactionEnvelope
 	err := xdr.SafeUnmarshalBase64WithOptions(encoded, &envelope, xdr.DecodeOptions{
-		MaxDepth: MaxDecodeDepth,
+		MaxDepth: effectiveMaxDepth,
 	})
 	if err != nil {
 		if errors.Is(err, xdr.ErrMaxDecodingDepthReached) {
 			return xdr.TransactionEnvelope{}, fmt.Errorf(
 				"soroauth: decode transaction envelope: nesting exceeds the %d-level limit: %w",
-				MaxDecodeDepth, ErrDecodeLimit)
+				effectiveMaxDepth, ErrDecodeLimit)
 		}
 		return xdr.TransactionEnvelope{}, fmt.Errorf(
 			"soroauth: decode transaction envelope: %w", err)

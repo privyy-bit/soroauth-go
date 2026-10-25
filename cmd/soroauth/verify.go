@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -70,6 +71,12 @@ Nothing is signed and no key is involved.
 What a green result does and does not guarantee — custom accounts, expiration,
 nonce consumption — is stated in docs/verification-limits.md in the source
 repository.
+
+--network accepts testnet, futurenet, public, rpc (fetch from RPC endpoint),
+or a literal network passphrase. When rpc is given, the passphrase is fetched
+from the configured RPC endpoint (--rpc-url or $SOROAUTH_RPC_URL) and printed
+so the caller sees which network they are verifying against. A fetch failure is
+an error, never a fall-through to a default network.
 `
 
 // verifyNodeOutput is one credential node's verdict in the JSON report.
@@ -112,6 +119,29 @@ func newVerifyEntryOutput(report soroauth.VerificationReport) verifyEntryOutput 
 	return out
 }
 
+// String renders the verification output for a terminal, using the library's
+// VerificationReport.String() format. This ensures consistency between
+// programmatic and CLI output.
+func (v verifyEntryOutput) String() string {
+	// Reconstruct a VerificationReport to use its String method
+	report := soroauth.VerificationReport{
+		CredentialType:   v.CredentialType,
+		AddressBound:     v.AddressBound,
+		Address:          v.Address,
+		ValidUntilLedger: v.ValidUntilLedger,
+		Note:             v.Note,
+		Nodes:            make([]soroauth.NodeVerdict, 0, len(v.Nodes)),
+	}
+	for _, node := range v.Nodes {
+		report.Nodes = append(report.Nodes, soroauth.NodeVerdict{
+			Address: node.Address,
+			Verdict: soroauth.VerifyVerdict(node.Verdict),
+			Reason:  node.Reason,
+		})
+	}
+	return report.String()
+}
+
 // verifyFailed reports whether a report has a node that is not a pass.
 //
 // It is the fail-closed reading of the report: cannot_check is a failure
@@ -134,6 +164,7 @@ func verifyFailed(report soroauth.VerificationReport, allowUnsigned bool) bool {
 
 func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) string, stdin io.Reader) error {
 	flags := flag.NewFlagSet("verify", flag.ContinueOnError)
+	registerVerbosityFlags(flags)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
 		fmt.Fprint(stderr, verifyUsage)
@@ -150,7 +181,7 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	jsonFlag := flags.Bool("json", false, "output as JSON")
 
 	if err := flags.Parse(args); err != nil {
-		return newErrorf(ExitUsageError, "%w", err)
+		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "%w", err))
 	}
 
 	set := visitedFlags(flags)
@@ -170,7 +201,7 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	}
 	if *entriesFlag != "" {
 		return runVerifyBatch(stdout, stderr, *entriesFlag, stdin,
-			resolvedNet, *validUntil, *allowUnsigned, jsonMode)
+			resolvedNet, *validUntil, *allowUnsigned, jsonMode, getenv, cfg, set)
 	}
 	if *entryFlag == "" {
 		return writeJSONError(stdout, jsonMode,
@@ -181,7 +212,9 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	if err != nil {
 		return writeJSONError(stdout, jsonMode, err)
 	}
-	passphrase, err := resolveNetwork(resolvedNet)
+	// Resolve the network passphrase, which may fetch from an RPC endpoint if "rpc" is given.
+	resolvedRPC := resolveRPCURLValue(set, "", getenv, cfg, "").Value
+	passphrase, err := resolveNetwork(context.Background(), resolvedNet, resolvedRPC, stderr, getenv, fetchNetworkPassphrase)
 	if err != nil {
 		return writeJSONError(stdout, jsonMode, err)
 	}
@@ -226,6 +259,22 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 			out.OperationIndex = item.operationIndex + 1
 			out.EntryIndex = item.entryIndex + 1
 		}
+		if flagVerbose(flags) {
+			where := "entry"
+			if input.IsEnvelope {
+				where = fmt.Sprintf("operation %d entry %d", out.OperationIndex, out.EntryIndex)
+			}
+			if len(report.Nodes) == 0 {
+				fmt.Fprintf(stderr, "soroauth: verify: %s: %s, no credential node to check\n", where, report.CredentialType)
+			}
+			for _, node := range report.Nodes {
+				fmt.Fprintf(stderr, "soroauth: verify: %s: node %s: %s", where, node.Address, node.Verdict)
+				if node.Reason != "" {
+					fmt.Fprintf(stderr, " (%s)", node.Reason)
+				}
+				fmt.Fprintln(stderr)
+			}
+		}
 		outputs = append(outputs, out)
 		if verifyFailed(report, *allowUnsigned) {
 			failed = true
@@ -243,7 +292,9 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 			return newErrorf(ExitGeneralError, "encoding the report: %w", err)
 		}
 	} else {
-		writeVerifyText(stdout, outputs, input.IsEnvelope)
+		for _, out := range outputs {
+			fmt.Fprint(stdout, out.String())
+		}
 	}
 
 	if failed {
@@ -255,8 +306,9 @@ func runVerify(args []string, stdout, stderr io.Writer, getenv func(string) stri
 // runVerifyBatch applies verify to every input in the file, with the same
 // per-entry handling the usage text describes: every input is attempted, each
 // outcome carries its position, and the exit code is the FIRST failure's.
-func runVerifyBatch(stdout, stderr io.Writer, entriesFlag string, stdin io.Reader, networkFlag string, validUntil uint, allowUnsigned, jsonFlag bool) error {
-	passphrase, err := resolveNetwork(networkFlag)
+func runVerifyBatch(stdout, stderr io.Writer, entriesFlag string, stdin io.Reader, networkFlag string, validUntil uint, allowUnsigned, jsonFlag bool, getenv func(string) string, cfg loadedConfig, set map[string]bool) error {
+	resolvedRPC := resolveRPCURLValue(set, "", getenv, cfg, "").Value
+	passphrase, err := resolveNetwork(context.Background(), networkFlag, resolvedRPC, stderr, getenv, fetchNetworkPassphrase)
 	if err != nil {
 		return writeJSONError(stdout, jsonFlag, err)
 	}
@@ -301,7 +353,7 @@ func runVerifyBatch(stdout, stderr io.Writer, entriesFlag string, stdin io.Reade
 		run.result(in.Index, out)
 		if !jsonFlag {
 			fmt.Fprintf(stdout, "entry %d:\n", in.Index)
-			writeVerifyText(stdout, []verifyEntryOutput{out}, false)
+			fmt.Fprint(stdout, out.String())
 		}
 	}
 

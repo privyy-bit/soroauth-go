@@ -2,6 +2,7 @@ package soroauth
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -224,7 +225,8 @@ func Inspect(entry xdr.SorobanAuthorizationEntry) (EntryInfo, error) {
 	// The root function. Only the contract-call arm names a contract and a
 	// function; the create-contract arms are reported by their absence rather
 	// than by inventing a name for them.
-	if entry.RootInvocation.Function.Type == xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeContractFn {
+	switch entry.RootInvocation.Function.Type {
+	case xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeContractFn:
 		contractFn := entry.RootInvocation.Function.ContractFn
 		if contractFn == nil {
 			return EntryInfo{}, fmt.Errorf("soroauth: inspect: contract_fn invocation arm is empty")
@@ -235,6 +237,16 @@ func Inspect(entry xdr.SorobanAuthorizationEntry) (EntryInfo, error) {
 		}
 		info.RootContract = contract
 		info.RootFunction = string(contractFn.FunctionName)
+
+	case xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeCreateContractHostFn,
+		xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeCreateContractV2HostFn:
+		// Create-contract arms: behave as they do today — do not set
+		// RootContract or RootFunction.
+		// No error: these are valid arms that the library knows about but
+		// does not name in the structural summary.
+
+	default:
+		return EntryInfo{}, fmt.Errorf("soroauth: inspect: %w", ErrUnsupportedFunctionType)
 	}
 
 	subInvocations, err := countSubInvocations(entry.RootInvocation.SubInvocations, 1)
@@ -244,4 +256,81 @@ func Inspect(entry xdr.SorobanAuthorizationEntry) (EntryInfo, error) {
 	info.SubInvocations = subInvocations
 
 	return info, nil
+}
+
+// String renders the entry info for a terminal, verdict first.
+//
+// The first line answers the reader's immediate question: what credential arm
+// is this, and is the top-level node signed? Subsequent lines detail the
+// delegate tree (if any), the invocation tree, and the credential fields.
+func (i EntryInfo) String() string {
+	var out strings.Builder
+
+	// Lead with the one-line verdict.
+	arm := i.CredentialType
+	if arm == "" {
+		arm = "unknown"
+	}
+	if i.Address != "" {
+		signedStatus := "unsigned"
+		if i.TopLevelSigned {
+			signedStatus = "signed"
+		}
+		out.WriteString(fmt.Sprintf("%s (%s) [%s]", i.Address, signedStatus, arm))
+	} else {
+		out.WriteString(fmt.Sprintf("(no address) (unsigned) [%s]", arm))
+	}
+	out.WriteString("\n")
+
+	// Credential fields (nonce, expiration) for address arms.
+	if i.Nonce != 0 {
+		out.WriteString(fmt.Sprintf("  nonce: %d\n", i.Nonce))
+	}
+	if i.ValidUntilLedger != 0 {
+		out.WriteString(fmt.Sprintf("  valid until ledger: %d\n", i.ValidUntilLedger))
+	}
+	if i.AddressBound {
+		out.WriteString("  address-bound: yes\n")
+	}
+
+	// Delegate tree.
+	if len(i.Delegates) > 0 {
+		out.WriteString("\ndelegate tree:\n")
+		writeDelegateTreeString(&out, i.Delegates, "")
+	}
+
+	// Invocation tree summary.
+	if i.RootContract != "" || i.RootFunction != "" {
+		out.WriteString("\ninvocation:\n")
+		out.WriteString(fmt.Sprintf("  %s (%s)\n", i.RootFunction, i.RootContract))
+	}
+	if i.SubInvocations > 0 {
+		out.WriteString(fmt.Sprintf("  %d sub-invocation(s)\n", i.SubInvocations))
+	}
+
+	return out.String()
+}
+
+// writeDelegateTreeString writes a delegate tree using the same box-drawing
+// connectors as DelegateTreeASCII, but inline with the String output.
+func writeDelegateTreeString(b *strings.Builder, nodes []NodeInfo, prefix string) {
+	for i, node := range nodes {
+		last := i == len(nodes)-1
+		connector := "├── "
+		nextPrefix := prefix + "│   "
+		if last {
+			connector = "└── "
+			nextPrefix = prefix + "    "
+		}
+		signedStatus := "unsigned"
+		if node.Signed {
+			signedStatus = "signed"
+		}
+		fmt.Fprintf(b, "%s%s%s (%s)\n", prefix, connector, node.Address, signedStatus)
+		if node.Shape != nil {
+			// Shape line should align with the node name, not the connector.
+			fmt.Fprintf(b, "%s%s    shape: %s\n", prefix, strings.Repeat(" ", len(connector)), node.Shape.Description)
+		}
+		writeDelegateTreeString(b, node.Nested, nextPrefix)
+	}
 }

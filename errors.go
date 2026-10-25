@@ -126,8 +126,12 @@ var (
 	// none silently would go on to submit a transaction it never authorized.
 	ErrNoInvokeOperation = errors.New("envelope carries no invokeHostFunction operation")
 
-	// ErrUnsupportedEnvelope is returned for a transaction envelope whose type
-	// this library does not know how to read.
+	// ErrUnsupportedFunctionType is returned when an invocation's function type
+	// is not handled by this library. Every reader of the invocation tree must
+	// either handle the type or return this sentinel; none reports a generic
+	// description. This prevents callers from silently receiving a vague answer
+	// about what an entry authorizes.
+	ErrUnsupportedFunctionType = errors.New("unsupported invocation function type")
 	//
 	// The three defined arms are ENVELOPE_TYPE_TX_V0 (0), ENVELOPE_TYPE_TX (2)
 	// and ENVELOPE_TYPE_TX_FEE_BUMP (5). A value outside that set means the

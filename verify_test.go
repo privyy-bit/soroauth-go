@@ -6,8 +6,10 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/network"
@@ -556,6 +558,32 @@ func TestVerifyEntryDoesNotMutateInput(t *testing.T) {
 	}
 }
 
+// TestVerifyEntryContextHonoursContextCancellation proves VerifyEntryContext
+// checks ctx.Err() before doing work and fails closed with context.Canceled.
+func TestVerifyEntryContextHonoursContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	entry := entryForArm(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddressV2, 1)
+	_, err := VerifyEntryContext(ctx, entry, network.TestNetworkPassphrase)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error %v does not match context.Canceled", err)
+	}
+}
+
+// TestVerifyEntryContextHonoursContextDeadline proves VerifyEntryContext also
+// fails closed on a deadline-exceeded context.
+func TestVerifyEntryContextHonoursContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	entry := entryForArm(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddressV2, 1)
+	_, err := VerifyEntryContext(ctx, entry, network.TestNetworkPassphrase)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error %v does not match context.DeadlineExceeded", err)
+	}
+}
+
 // scMapVal and scI64 are small ScVal constructors the custom-shape table needs;
 // the accountSignature builder in signer.go covers the shape these are not.
 func scMapVal() xdr.ScVal {
@@ -755,4 +783,98 @@ func corruptSignatureShapes(t testing.TB, signed xdr.SorobanAuthorizationEntry) 
 	}
 
 	return out
+}
+
+// TestVerificationReportStringGolden verifies the String() output matches the golden format.
+func TestVerificationReportStringGolden(t *testing.T) {
+	tests := []struct {
+		name   string
+		report VerificationReport
+		want   string
+	}{
+		{
+			name: "source account",
+			report: VerificationReport{
+				CredentialType: CredentialTypeSourceAccount,
+				Note:           "source-account credentials carry no signature payload of their own; the transaction envelope's signature covers them, so there is nothing here to verify",
+			},
+			want: "source_account (no payload to verify): source-account credentials carry no signature payload of their own; the transaction envelope's signature covers them, so there is nothing here to verify\n",
+		},
+		{
+			name: "verified address v2",
+			report: VerificationReport{
+				CredentialType:   CredentialTypeAddressV2,
+				AddressBound:     true,
+				Address:          "GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5",
+				ValidUntilLedger: 1234567,
+				Nodes: []NodeVerdict{
+					{Address: "GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5", Verdict: VerdictVerified},
+				},
+			},
+			want: "VERIFIED: all credential nodes verified [GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5] [address_v2]\n  valid until ledger: 1234567\n  address-bound: yes\n\ncredential nodes:\n  GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5: verified\n",
+		},
+		{
+			name: "unsigned node",
+			report: VerificationReport{
+				CredentialType: CredentialTypeAddressV2,
+				AddressBound:   true,
+				Address:        "GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5",
+				Nodes: []NodeVerdict{
+					{Address: "GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5", Verdict: VerdictUnsigned, Reason: "the node carries no signature (Void or an empty vector)"},
+				},
+			},
+			want: "NOT VERIFIED: unsigned node(s) present [GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5] [address_v2]\n  address-bound: yes\n\ncredential nodes:\n  GC33NWBJFXQSQMD3AMHTFEFT36IH5ZBG24L5RZMQGKO2SPBTVB74VZI5: unsigned (the node carries no signature (Void or an empty vector))\n",
+		},
+		{
+			name: "cannot check contract node",
+			report: VerificationReport{
+				CredentialType: CredentialTypeAddressV2,
+				AddressBound:   true,
+				Address:        "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				Nodes: []NodeVerdict{
+					{Address: "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", Verdict: VerdictCannotCheck, Reason: "the node addresses a C… contract; only the contract's __check_auth defines whether its signature is valid, so this cannot be checked offline"},
+				},
+			},
+			want: "NOT VERIFIED: invalid or uncheckable node(s) [CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX] [address_v2]\n  address-bound: yes\n\ncredential nodes:\n  CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX: cannot_check (the node addresses a C… contract; only the contract's __check_auth defines whether its signature is valid, so this cannot be checked offline)\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.report.String()
+			if got != tt.want {
+				t.Errorf("String() output mismatch:\n got:\n%s want:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestVerificationReportStringDoesNotPanic verifies String() never panics on pathological values.
+func TestVerificationReportStringDoesNotPanic(t *testing.T) {
+	// Many nodes
+	manyNodes := VerificationReport{
+		CredentialType: CredentialTypeAddressWithDelegates,
+		AddressBound:   true,
+		Address:        "GTOP",
+		Nodes:          make([]NodeVerdict, 1000),
+	}
+	for i := range manyNodes.Nodes {
+		manyNodes.Nodes[i] = NodeVerdict{Address: fmt.Sprintf("G%d", i), Verdict: VerdictVerified}
+	}
+	_ = manyNodes.String() // Should not panic
+
+	// Very long reason
+	longReason := VerificationReport{
+		CredentialType: CredentialTypeAddressV2,
+		AddressBound:   true,
+		Address:        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+		Nodes: []NodeVerdict{
+			{Address: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", Verdict: VerdictCannotCheck, Reason: strings.Repeat("x", 10000)},
+		},
+	}
+	_ = longReason.String() // Should not panic
+
+	// Empty report
+	empty := VerificationReport{}
+	_ = empty.String() // Should not panic
 }

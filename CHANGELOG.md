@@ -8,6 +8,52 @@ this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Add ten README recipes with compile-checked source snippets, a contributor
+  guide, a security policy, and an issue backlog. (#408, #409, #410, #411)
+
+- Add the `explain-error` CLI subcommand and vector-discrepancy issue template
+  reference. (#400, #401, #402, #403)
+
+### Changed
+
+- **C shared-library ABI** (`bindings/c`) builds the signing core as a
+  `c-shared` library and exposes the authorization operations and typed errors
+  through a JSON-based C interface. (#339)
+
+- `Equal` and `Clone` are available from the Go package: `Equal` compares
+  authorization entries by their encoded XDR bytes, and `Clone` returns a deep
+  copy that can be mutated without changing the original entry. (#385)
+
+- `Inspect` returns `ErrUnsupportedFunctionType` for invocation function types
+  it does not support, so callers can distinguish unsupported input from a
+  successful inspection. (#387)
+
+- Decode limits are exposed through `MaxDecodeDepth`, `MaxDecodeInputBytes` and
+  `LimitOptions`. Callers may tighten the bounds used when decoding
+  authorization entries and transaction envelopes, but cannot loosen the
+  defaults. (#388)
+
+- **The minimum Go version is now 1.26.3** (was 1.25.0). `go.mod`, every
+  `adapters/*/go.mod`, the README and CONTRIBUTING name the same version, and
+  the `toolchain` line is restored so builds resolve one compiler.
+
+  The move was forced, not chosen: `github.com/prometheus/client_golang` v1.25.0
+  declares `go 1.26.0`, and a module cannot require less than its dependencies.
+  It arrived as a Dependabot bump that also deleted the `toolchain` line, so the
+  floor moved with no document saying so and four workflows went red on `main` —
+  `ci-adapters` (all three adapters), `ci-go`, `ci-image` and `ci-node`.
+
+  It then moved again, from 1.26.0 to 1.26.3, when the FROST threshold-signer
+  dependencies landed. Both times the adapter modules were left behind and
+  `ci / adapters` went red; `internal/doccheck` now fails the build when an
+  adapter or the README disagrees with `go.mod`, so the next move cannot be
+  partial.
+
+  Consumers on Go 1.25 must upgrade. `docs/sdk-support.md` carries the policy
+  for moving the floor.
+
 - Signer work. `signertest.Run` is an importable conformance suite for the
   `Signer` contract (stable address, honoured context without signing, an
   untouched preimage, no partial value on failure, and determinism only when the

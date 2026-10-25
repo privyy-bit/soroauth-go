@@ -93,6 +93,8 @@ jobs:
         run: npx prettier --check '**/*.md'
       - name: diagrams are up to date
         run: node docs/diagrams/render.mjs --check
+      - name: man page is up to date
+        run: make man-check
 
   golden-drift:
     name: golden vectors are reproducible
@@ -189,3 +191,22 @@ jobs:
         run: cargo test --workspace --locked
       - name: build every contract to wasm
         run: cargo build --release --target wasm32v1-none --workspace --locked
+  # Fourth of the pull-request checks: CHANGELOG consistency.
+  #
+  # Checks feat and fix commits introduced by this PR or push against issue
+  # references in the CHANGELOG Unreleased section. For a PR, the PR title/body
+  # can provide the issue reference when individual commits do not. Chore, CI,
+  # test and docs commits are excluded.
+  changelog:
+    name: CHANGELOG consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: run CHANGELOG consistency check
+        run: make changelog-check

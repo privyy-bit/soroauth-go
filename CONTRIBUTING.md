@@ -1,8 +1,6 @@
-# Contributing
+# Contributing to soroauth
 
-Thanks for looking. This library produces signatures that move money, so the bar
-for changes is higher than the size of the codebase suggests. Most of what
-follows exists to keep the evidence honest rather than to police style.
+## Overview
 
 ## Your first contribution, in ten steps
 
@@ -15,7 +13,7 @@ the section that explains it.
       [Picking up an issue](#picking-up-an-issue).
 - [ ] **2. Clone and run the suite before changing anything**, so you know a
       later failure is yours: `git clone … && cd soroauth-go && go test ./...`.
-      Go 1.25.0 or later is the only requirement for the library and CLI — see
+      Go 1.26.3 or later is the only requirement for the library and CLI — see
       [Setup](#setup).
 - [ ] **3. Branch.** Name it after the work, not the issue number alone:
       `docs/161-onboarding-checklist`, `feat/entry-diff`.
@@ -31,8 +29,7 @@ the section that explains it.
 - [ ] **7. Run `make`** — that is `fmt`, `vet` and `test`. If you touched any
       Markdown, also run `npx prettier --write '**/*.md'`, because the build
       checks it. `golangci-lint run ./...` is a local gate worth running too —
-      see [Before you open a pull request](#before-you-open-a-pull-request) and
-      [Linting](#linting).
+      see [Make targets](#make-targets) and [Running Tests](#running-tests).
 - [ ] **8. Commit in conventional form**, lowercase and imperative, one logical
       unit per commit, with the command you ran and its real output in the body
       — see [Commit format](#commit-format).
@@ -46,7 +43,8 @@ the section that explains it.
       the issue rather than absorbing it silently.
 
 One thing that is not on the list: do not report a signature-correctness or
-key-handling bug in a public issue or pull request. See [Security](#security).
+key-handling bug in a public issue or pull request. See
+[Security Issues](#security-issues).
 
 ## Picking up an issue
 
@@ -63,7 +61,7 @@ cd soroauth-go
 go test ./...
 ```
 
-That is the whole setup for the library and CLI. Go 1.25.0 or later.
+That is the whole setup for the library and CLI. Go 1.26.3 or later.
 
 The pinned `github.com/stellar/go-stellar-sdk` version and the policy for moving
 it live in [docs/sdk-support.md](docs/sdk-support.md).
@@ -77,8 +75,8 @@ Two optional pieces need more:
   28.0.0. See [the fixture contract quickstart](docs/fixture-quickstart.md) for
   a step-by-step build and deploy guide from a clean checkout.
 - **Working on the wallet SDK adapter** (`adapters/walletsdk`) needs nothing
-  extra, but it is a module of its own with its own test loop; see
-  [The nested adapter module](#the-nested-adapter-module).
+  extra, but it is a module of its own with its own test loop; run
+  `cd adapters/walletsdk && go test ./...`.
 - **Running the Python parity harness** needs Python 3.10+ and the pinned SDK in
   `testdata/parity-python/requirements.txt`; `make parity` creates a venv and
   installs it. The differential fuzzing harness reuses the same venv and SDK:
@@ -119,223 +117,58 @@ formatting instead of printing a warning, `make vectors-check` exits non-zero
 when regeneration changes a committed vector, and `make e2e` refuses to run
 without `stellar-cli` rather than failing later with an obscure test error.
 
-## Before you open a pull request
+## What a change needs
 
-```sh
-make            # fmt, vet and test
-```
+A change is ready for review when its behavior is covered by a test that would
+fail without the change, exported APIs explain their purpose and constraints,
+and protocol claims cite the source that supports them. Changes to authorization
+entries must preserve caller input, and errors must be returned rather than
+silently ignored.
 
-The underlying commands are:
+Run the relevant checks in [Running Tests](#running-tests) and include the exact
+commands and outcomes in the pull request. When editing a README example, update
+both its source and its fenced block as described in
+[Verifying README snippets compile](#verifying-readme-snippets-compile).
 
-```sh
-gofmt -l .        # must print nothing
-go vet ./...
-golangci-lint run ./...
-go test -race ./...
-```
+## Adding Recipes
 
-If your change touches any Markdown, format it too. The `vet and test` job runs
-`npx prettier --check '**/*.md'`, so an unformatted file fails the build:
+When adding a new recipe to the README:
 
-```sh
-npm ci                              # once, for the pinned formatter
-npx prettier --write '**/*.md'
-```
+1. Create a new Go file in `internal/readmesnippets/` with a
+   `// snippet:start <name>` / `// snippet:end <name>` marker pair.
+2. The code between markers must be a complete, compiling program (not a
+   fragment).
+3. Add the snippet name and source file to `readme_test.go` in the
+   `readmeSnippets` variable.
+4. Add the ```go code block to `README.md` in the appropriate location (after
+   the existing blocks, maintaining order).
+5. Run `go test -run TestReadmeSnippetsMatchTheirSource -v` to verify all blocks
+   match.
 
-This catches people out, because a branch written before that check existed
-fails on files it never touched. Running the line above fixes it. `CLAUDE.md`,
-the generated `e2e/RESULTS.md` and the committed vectors are excluded in
-`.prettierignore` and should stay that way.
+**Golden vector rule**: Never edit a vector by hand. If a golden vector needs
+updating, regenerate it with `make vectors` and commit the new JSON. The CI
+drift check (`make vectors-check`) will fail if the Go code produces different
+output.
 
-CI runs all of these except `golangci-lint`, plus the golden-vector drift check
-and the contract build; the signing-path budget check runs on push to main (see
-[Benchmarks](#benchmarks)). `golangci-lint` is a local gate only, because pull
-requests are capped at three checks — see [Linting](#linting).
+## Regenerating Golden Vectors
 
-The suite runs with `-race` because `internal/xdrcopy` shares encoder and
-decoder buffers across calls through `sync.Pool`; without the detector,
-`TestCopyConcurrentReuse` would still pass on code that races.
+Vectors are generated in `testdata/vectors/` by `gen.mjs` using
+`@stellar/stellar-sdk@17.1.0`.
 
-`internal/xdrcopy` also has a round-trip fuzz target, which the same `-race`
-reasoning covers: it asserts a copy is byte-identical to its source and shares
-no memory with it. Run it locally with
-
-```sh
-go test -fuzz=FuzzCopyRoundTrip -fuzztime=30s ./internal/xdrcopy
-```
-
-## Linting
-
-The gate is `.golangci.yml`, run locally. There is no `lint` job in
-`.github/workflows/ci.yml`: pull requests are capped at three checks, and the
-two that gate a merge are `vet and test` and `golden vectors are reproducible`.
-Run the linter before you push; a reviewer may also run it.
-
-The config is deliberately small, and each linter in it is there because the
-project would actually fix what it reports; the file says which and why, and
-which linters are off on purpose. A linter whose findings are all suppressed
-should be deleted rather than left as decoration.
-
-The config was verified against `v2.14.0`. Install that version and run it from
-the repository root:
-
-```sh
-GOBIN="$PWD/.tools" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
-./.tools/golangci-lint run ./...
-```
-
-`.tools/` is gitignored. `golangci-lint run` prints `0 issues.` and exits 0 when
-clean; a finding names the file, the line and the linter. Fix a finding rather
-than excluding it. The one documented exception is `fmt.Fprint*` to the CLI's
-own stdout/stderr streams, listed under `errcheck.exclude-functions`; adding to
-that list needs a reason in the config, not a `//nolint` at the call site.
-
-### The nested adapter module
-
-`adapters/walletsdk` is a Go module of its own, so `./...` from the repository
-root does not reach it: the go tool stops at the first directory holding a
-`go.mod`. It has its own CI job, and its own loop:
-
-```sh
-cd adapters/walletsdk
-gofmt -l .
-go vet ./...
-go test -race ./...
-```
-
-It is a separate module on purpose: it is the only place a wallet SDK is named,
-and keeping it out of the root module is what stops `go get` of soroauth from
-pulling one in. Nothing in the root module may depend on it, and
-`TestRootModuleStaysFreeOfWalletSDKs` in the adapter's own tests fails if a
-wallet SDK appears in the root `go.mod` or `go.sum`.
-
-Because the two are separate modules, `adapters/walletsdk/go.mod` carries a
-`replace` back to the repository root, so the adapter is tested against the
-soroauth in this checkout rather than a published version. The root module is
-not tagged yet; once it is, the adapter is the module that needs its own
-`adapters/walletsdk/vX.Y.Z` tags before anyone outside this repository can
-`go get` it.
-
-## Parity harnesses
-
-The golden vectors prove soroauth agrees with `@stellar/stellar-sdk`. They
-cannot prove that agreement is _correct_, because a bug shared by both
-implementations would be frozen into the vectors. Three harnesses close that gap
-by recomputing the vectors with other implementations:
-
-- **Python** (`testdata/parity-python/`), against the separately maintained
-  `stellar-sdk` on PyPI. `make parity` imports every vector, rebuilds the
-  preimage and payload, and compares. Cases with no preimage (source-account
-  entries) are skipped loudly and counted; a run that checks nothing fails.
-- **Rust** (`testdata/parity-rust/`), against the separately maintained
-  [`stellar-xdr`](https://crates.io/crates/stellar-xdr) crate, which is what the
-  Soroban host itself decodes with. `make parity-rust` recomputes every vector's
-  preimage and payload and compares; the crate is pinned exactly in `Cargo.toml`
-  and `Cargo.lock` and the harness refuses to run against another version. Cases
-  with no preimage (source-account entries) are skipped loudly and counted, and
-  a run that checks nothing fails.
-- **Differential fuzzing** (`testdata/differential/`), which is the one that
-  reaches the entries nobody wrote down. `cmd/difffuzz` generates a random but
-  deterministic corpus across every credentials arm and records this library's
-  preimage and payload for each; `make differential` then requires
-  `@stellar/stellar-sdk` and the Python `stellar-sdk` to reproduce every one. A
-  case that diverged is frozen into `testdata/differential/regressions/` and
-  keeps being checked. **A divergence is a release blocker.**
-- **WebAssembly** (`wasm/parity.mjs`), against the wasm build of this same
-  library. `make wasm-check` proves the browser build emits the same bytes as
-  the native one, replaying the golden vectors, the differential corpus and its
-  frozen regressions, and the fuzz seed corpus against the native results
-  recorded in `testdata/wasm-parity/fuzz_expectations.json`. A seed the native
-  build refused must be refused by the wasm build too.
-
-The golden-vector harnesses are pinned: the Python SDK in `requirements.txt`,
-the JS SDK in `testdata/gen/package.json`, the differential verifier's JS SDK in
-`testdata/differential/package.json`. **Never edit a vector or a corpus case to
-make a harness pass.** A disagreement means one implementation is wrong; open an
-issue with the protocol reference (CAP-46-11, CAP-71-01, CAP-71-02) and
-investigate.
-
-## The WebAssembly core and the TypeScript wrapper
-
-`cmd/soroauthwasm` compiles the signing core to `js/wasm`. It is a thin binding
-over the same `soroauth` package the native build uses — it does not reimplement
-anything — and it is behind `//go:build js && wasm`, so `go build ./...` visits
-it only when you ask for that target. `wasm/build.sh` builds it together with
-the matching `wasm_exec.js`.
-
-`wasm/ts` is the `@soroauth/wasm` npm package: a typed wrapper over those
-bindings. It is a wrapper, not a second implementation, and its tests run under
-jsdom plus a real-wasm integration test.
-
-The interactive TUI (`tui.go`) is excluded from js/wasm builds, because
-bubbletea does not compile for that target. The CLI, which is never built for
-js/wasm, still has it.
-
-## Benchmarks
-
-The signing path has committed benchmarks in `bench_signing_test.go` covering
-`Preimage`, `Payload`, `AuthorizeEntry` on all three arms (legacy, V2,
-delegates, including a depth-8 delegate chain), `AuthorizeAll` over a 12-entry,
-4-signer batch, and `BenchmarkXDRCopy` — the deep copy in `internal/xdrcopy`
-that every entry-returning function performs, in its two on-path shapes (an
-authorization entry and a `HashIdPreimage`).
-
-Issue #365 split the gate into a **separate budget per operation and per
-credential arm**, so a regression in one arm cannot hide behind an improvement
-in another. `bench_arms_test.go` adds `BenchmarkVerifyEntry` and
-`BenchmarkDiffEntries` on each of the three arms, plus `BenchmarkDelegateTree`,
-which signs a delegate chain parameterised by node count (`nodes_1`, `nodes_4`,
-`nodes_16`, `nodes_63`) so super-linear growth in the recursive walk is visible.
-Each budget in `testdata/bench/budgets.json` may name the operation and arm it
-gates; `checkbench` prints that label on failure (`verification/delegates`)
-instead of an opaque Go benchmark path, and always prints the underlying
-benchmark name too.
-
-```sh
-# Full suite with allocation stats
-go test -run '^$' -bench . -benchmem -count=1 .
-
-# One arm
-go test -run '^$' -bench 'BenchmarkAuthorizeEntry/delegates' -benchmem .
-```
-
-CI runs the same command and gates on **allocs/op and B/op** only, via:
-
-```sh
-go test -run '^$' -bench . -benchmem -count=1 . | tee /tmp/bench.out
-go run ./scripts/checkbench /tmp/bench.out testdata/bench/budgets.json
-```
-
-`ns/op` is reported for humans in PRs (with the machine it came from) but never
-fails the build: wall-clock on a shared runner is noise. Allocation counts are
-deterministic for a given Go version and are the regression signal.
-
-`testdata/bench/budgets.json` is the committed baseline. Signing-path budgets
-carry ~40% headroom over the measured values so a Go minor bump does not flake
-CI. If the checker fails:
-
-- If the increase is a bug, fix the bug; do not raise the budget.
-- If the increase is intentional, raise the budget in the **same commit** as the
-  change and say in the commit body which function got more expensive and why
-  that is acceptable.
-- Never lower a budget without a fresh local measurement on the machine named in
-  the commit body.
-
-When you add a benchmark, add a budget in the same commit. The checker prints
-`WARN … no budget` for any benchmark it sees without one, and
-`FAIL … benchmark not found` if a budgeted name is missing from the output — so
-a renamed benchmark cannot silently drop out of the gate.
-
-### Reproducing a budget failure locally
+```bash
+# Install dependencies
+cd testdata/gen && npm ci
 
 A CI failure from the `bench` job is a `FAIL` line naming the operation and arm,
 the measured value, and the committed baseline, with the benchmark path on the
 following line:
 
 ```
-FAIL verification/delegates        allocs/op 49 > baseline 10
-                                   benchmark BenchmarkVerifyEntry/delegates  (143581 ns/op)
-```
+
+FAIL verification/delegates allocs/op 49 > baseline 10 benchmark
+BenchmarkVerifyEntry/delegates (143581 ns/op)
+
+````
 
 The two commands above, run from the repository root, reproduce it locally —
 `checkbench` exits 1 exactly as CI does. Once you can see _which_ operation and
@@ -345,7 +178,7 @@ arm regressed, find out _where_ the allocations come from:
 go test -run '^$' -bench BenchmarkXDRCopy -benchmem -count=1 -memprofile /tmp/mem.out .
 go tool pprof -alloc_objects -top /tmp/mem.out   # rank by number of allocations
 go tool pprof -alloc_space  -top /tmp/mem.out    # rank by bytes
-```
+````
 
 The signing-path entries (`AuthorizeEntry`, `AuthorizeAll`) also include ed25519
 signing and SHA-256; `BenchmarkXDRCopy` isolates the deep copy, so a regression
@@ -522,573 +355,111 @@ There are two generators, because there are two things being proven:
   so there is no CAP to cite and the evidence is a real wallet library's output
   instead.
 
+If you discover a vector discrepancy (e.g. the Go output does not match the JS
+SDK), **do not edit the vector by hand**. Instead, open a new issue using the
+"Vector discrepancy report" template at
+`.github/ISSUE_TEMPLATE/vector-discrepancy.md`. This template collects both
+encodings, both implementation versions, the vector name, and the command that
+produced the disagreement. Prominently states that no vector may be edited by
+hand. Route to maintainers at the appropriate severity.
+
 To change them, change the generator:
 
 ```sh
 cd testdata/gen
 npm ci
 node gen.mjs
-node gen-passkey.mjs
+
+# Run the drift check (compares Go output against vectors)
+make vectors-check
 ```
 
-Then commit the regenerated files together with the generator change.
+**Important**: The generator refuses to run if the loaded SDK version is not
+exactly `17.1.0`. The `sdk` field in each generated JSON records the actual
+version loaded.
 
-### Versioning the vector schema and reproducing failures
+## Running Tests
 
-Every golden vector carries an explicit `schema_version` field (currently `1`).
-The loader (`golden_test.go`) explicitly checks this version and rejects any
-unknown or missing schema version rather than guessing or ignoring
-removed/reinterpreted fields.
-
-- **Bumping the version:** When a protocol change or schema evolution requires
-  altering the structure of golden vectors, increment `schema_version` in both
-  the generator (`testdata/gen/gen.mjs`) and all committed vector JSON files
-  under `testdata/vectors/`, and update the expected version check in
-  `golden_test.go`.
-- **Reproducing a failure locally:** If a vector fails schema validation or
-  drifts from the reference implementation, run `go test -run TestGoldenVectors`
-  (or `make vectors-check`) from the repository root. The test suite will fail
-  loudly, naming the vector and the exact mismatch or unsupported schema
-  version.
-
-If a vector disagrees with the Go code, the Go code is wrong until proven
-otherwise. If you believe the vector itself is wrong, stop and open an issue
-saying why, with the protocol reference — do not change it to make a test pass.
-
-Each generator refuses to run against a library other than the version it is
-pinned to, since a vector from another build is not evidence about this one.
-`gen-passkey.mjs` additionally records the `@stellar/stellar-sdk` version
-`smart-account-kit` resolved and refuses a mismatch, and
-`passkey_golden_test.go` asserts both the inner signature map and the library's
-complete output, so the one-element vector `smart-account-kit` wraps its map in
-is pinned rather than assumed.
-
-### Frozen release entries
-
-The golden vectors move with the code: `make vectors` regenerates them in the
-same commit as any change. That is what they are for, and it is also why they
-cannot catch a wire-format regression in reading a stored, pre-signed entry —
-the vector and the reader change together.
-
-`testdata/frozen/<release>/` is the opposite: entries signed by an earlier
-release, committed once and **never regenerated**. `frozen_test.go` asserts the
-current code still decodes each to the same bytes, rebuilds the payload the
-release recorded, verifies the signature and inspects to the same structure. If
-one ever stops verifying, that is a wire-format regression and must stop the
-build, not be re-recorded.
-
-The set is kept out of `testdata/vectors/`, and `make vectors-check` (and CI)
-diffs it as well, so a generator that wrote there would fail the check. To add a
-set for a new release, follow
-[`testdata/frozen/README.md`](testdata/frozen/README.md) — check out the tag,
-run `scripts/frozengen` inside that worktree, and commit the output.
-
-## Deterministic test keys
-
-Every key in the tests, examples, benchmarks and golden vectors is derived from
-a plaintext label committed in this repository. Signatures are then
-reproducible: ed25519 is deterministic, so the same label, payload and code give
-the same bytes on every machine and in every implementation. That is what lets a
-golden vector assert byte equality.
-
-The derivation is SHA-256 of the label, used as the seed:
-
-| Key                     | Go                                                                           | JS (`testdata/gen/`)                                             |
-| ----------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| ed25519 account (`G…`)  | `keypair.FromRawSeed(sha256.Sum256([]byte(label)))`                          | `Keypair.fromRawEd25519Seed(sha256(label))`                      |
-| contract address (`C…`) | `strkey.Encode(strkey.VersionByteContract, sha256(label))`                   | `Address.contract(sha256(label))`                                |
-| P-256 passkey key       | private scalar `sha256(label) mod n` (`testPasskeyKey` in `passkey_test.go`) | `sha256(label)` as the private key or scalar (`gen-passkey.mjs`) |
-
-For example, the golden vectors sign with the label `soroauth-vector-signer-1`,
-and `ExampleAuthorizeEntry` uses `soroauth-example-account`. A few examples
-(`constructor_examples_test.go`, `signer_test.go`) pass a literal seed such as
-`[32]byte{1, 2, 3}` instead. Those keys are just as public.
-
-**These keys are public.** Anyone who reads the label can derive the secret key
-and spend from the account. They exist only to make tests reproducible. Never
-fund them on mainnet, and never send them anything of value on any network.
-
-When you add a test:
-
-- Derive keys with the helper your package already has, such as `testKeypair` in
-  `address_test.go`, and pass a new label that says what the key is for
-  (`soroauth-<area>-<role>`). Do not invent key bytes by hand.
-- Do not rename a `soroauth-vector-signer-*` label. `gen.mjs` derives the
-  vectors' keys from those labels, so renaming one breaks every vector signed
-  with it.
-- Never use this scheme for a key that holds value. The e2e tests need funded
-  accounts, so they call `keypair.Random()` (`e2e/harness_test.go`), fund the
-  accounts from friendbot on testnet, and never write the keys to disk.
-
-## Shared fixture deployment harness & running e2e tests
-
-The e2e test suite provides a shared fixture deployment harness
-(`deployAndFundFixture` on the test `harness`) so individual contract fixtures
-do not reimplement deployment and funding logic.
-
-To deploy and fund any contract fixture in your own scenarios or local
-debugging:
-
-```go
-deployer := h.newAccount(t, "deployer")
-wasmBytes := wasmPath("modular_account")
-contractID := h.deployAndFundFixture(t, deployer, wasmBytes, constructorArgs...)
-```
-
-## Running the e2e tests
-
-```sh
-cd e2e/contracts && stellar contract build
-cd ../.. && go test -tags e2e -v ./e2e/...
-```
-
-They run against testnet by default; `SOROAUTH_RPC_URL` points them elsewhere.
-Accounts are generated at runtime and funded by friendbot. A full run takes
-about three minutes.
-
-`e2e/RESULTS.md` is written by a run and only when every scenario ran. Commit it
-only from a real, complete run — it is what the README's testnet claims point
-at.
-
-See [e2e/README.md](e2e/README.md) for what each scenario proves and why the two
-rejection scenarios exist. For a step-by-step guide to building and deploying
-the fixture contracts manually from a clean checkout, see
-[the fixture contract quickstart](docs/fixture-quickstart.md).
-
-## Scheduled e2e runs (CI)
-
-A GitHub Actions workflow (`.github/workflows/e2e.yml`) runs the e2e suite on a
-schedule (every 6 hours) and on `workflow_dispatch`. This catches testnet
-resets, protocol upgrades, and RPC changes that would otherwise break the suite
-silently between releases.
-
-- The workflow **does not** commit `e2e/RESULTS.md` automatically — that remains
-  a deliberate act from a verified local run.
-- On scheduled failure, the workflow opens a GitHub issue with the run details
-  so the regression is visible without digging through logs.
-- To reproduce a scheduled failure locally:
-  ```sh
-  export SOROAUTH_RPC_URL=https://soroban-testnet.stellar.org
-  go test -tags e2e -v ./e2e/...
-  ```
-
-## The nightly run against the SDK's default branch (CI)
-
-`.github/workflows/ci-sdk-main.yml` builds and tests against
-`go-stellar-sdk@main` every night, in a workflow of its own. It exists because
-`docs/sdk-support.md` sets a policy for moving the pin and the pin moves when
-someone tries it: a break under `main` is cheaper to learn about on the night it
-lands than on the day someone needs the bump.
-
-It never moves the pin. `go get` runs on the job's throwaway checkout, and the
-result is reported rather than committed, so a failure there says "the SDK's
-default branch has something we would have to deal with", not "the pinned build
-is broken". It runs the build, the race-detector suite and
-`go test -run TestGoldenVectors`, and the last one is the point: the golden
-vectors are the bytes this library emits, so a wire-format change in the SDK is
-the finding that matters most.
-
-A failure updates one rolling issue titled
-`[sdk-main] go-stellar-sdk@main no longer builds or passes`, commenting on the
-existing one rather than filing another. A success is visible as a green run, a
-job summary, and the README's `go-stellar-sdk@main` badge — a nightly job that
-only speaks up on failure cannot be distinguished from one that has stopped
-running.
-
-Reproduce a failure locally by doing exactly what the job does:
-
-```sh
-go get github.com/stellar/go-stellar-sdk@main
-go mod tidy
+```bash
+# Run all unit tests (no network)
 go test ./...
-go test -run TestGoldenVectors -v .
+
+# Run the README snippet test specifically
+go test -run TestReadmeSnippetsMatchTheirSource -v
+
+# Run e2e tests (requires testnet RPC)
+go test -tags e2e ./e2e/...
+
+# Run the vet check
+go vet ./...
 ```
 
-(`git checkout go.mod go.sum` afterwards. A vector that stops matching is not a
-vector to edit — see [Golden vectors](#golden-vectors).)
-
-## Parity reports
-
-The e2e suite writes a machine-readable `parity-report.json` alongside
-`RESULTS.md`, listing every scenario with its vector id, implementation, verdict
-and observed credential arm, so a parity regression can be read by a tool rather
-than by eye.
-
-`TestParityReportRegression` checks that report's shape: a non-zero scenario
-count, and a vector id and verdict on every entry. It needs no network — when no
-live report is present it reads the committed fixture at
-`e2e/testdata/parity_regression.json` — so it runs in CI as a step of the
-`vet and test` job, and a regression fails the build rather than only a local
-run:
-
-```sh
-go test -tags e2e -run TestParityReportRegression ./e2e
-```
-
-To debug a failure, inspect the generated `parity-report.json` in the repository
-root after a full e2e run; it carries the per-scenario verdicts the test is
-asserting over.
-
-## Coverage reporting (CI)
-
-The `coverage` job in `.github/workflows/ci-go.yml` measures test coverage,
-checks it against the committed per-package floors in
-`testdata/coverage/floors.json`, and publishes the report via Codecov. It runs
-on push to `main` and on demand, not on pull requests: pull requests carry only
-the three checks the branch ruleset requires.
-
-This replaced one repository-wide floor of 60%. A single floor lets a
-well-covered package subsidise a thin one: the signing path was averaged
-together with the CLI and the examples, so a real regression in the former could
-hide behind the latter. Each package now carries its own floor, set from the
-measurement recorded next to it — a floor nobody can meet gets raised away —
-with a one-line reason each. **The signing path (the root package and
-`internal/xdrcopy`) carries floors strictly above the 60% repository-wide floor
-this scheme replaced**, so a regression in the path that produces signatures
-cannot hide behind a repository average; `scripts/checkcov` enforces that
-minimum as policy.
-
-Packages with no tests by design are **excluded by name**, with a reason each,
-never given a floor of zero: the examples are documentation exercised by the
-golden and e2e runs, and `cmd/gencorpus`, `scripts/checkbench` and
-`scripts/frozengen` are development tools CI runs itself. If an excluded package
-gains tests, the checker fails until the table says what to do.
-
-`scripts/checkcov` fails naming the package and both numbers when a package
-drops below its floor, when a package has neither a floor nor an exclusion, and
-when the table and the tree disagree — a floor for a package that has been
-renamed away, or one raised above the measurement it was set from. It also
-filters `node_modules/` out of the profile: the root `npm ci` installs
-`node_modules/flatted/golang`, which a local run would otherwise see and CI
-never measures.
-
-Coverage is not correctness: it says which lines ran, not that the result is
-right. The mutation-testing work planned over the signing path
-([docs/WAVE10_BACKLOG.md](docs/WAVE10_BACKLOG.md), "test: mutation testing over
-the signing path") is the stronger check; these floors are a tripwire for
-regressions, not evidence of correctness.
-
-Reproduce the job with one command:
-
-```sh
-make coverage
-```
-
-which is:
-
-```sh
-go test -coverprofile=coverage.out -covermode=atomic ./...
-go list -f '{{.ImportPath}}' ./... > packages.txt
-go run ./scripts/checkcov coverage.out testdata/coverage/floors.json packages.txt
-```
-
-`make coverage` derives the toolchain from the `toolchain` line in `go.mod` and
-runs each command under it, because statement counts move between Go minor
-versions — go1.27 counts the `server` package about 4.5 points lower than
-go1.25.4 — and the floors were measured with the pinned toolchain. CI does the
-same.
-
-When a floor fails, `go tool cover -func=coverage.out` shows which functions
-moved, and the fix is the tests, not the floor. Changing a floor needs a fresh
-measurement named in the commit body; never lower one to make CI green.
-
-## Property-based tests
-
-The address package includes property-based tests using
-[gopter](https://github.com/leanovate/gopter). These tests generate thousands of
-random G... and C... addresses and verify:
-
-- ParseAddress/FormatAddress round-trips for both address types
-- XDR encoding stability across round-trips
-- Rejection of invalid inputs (muxed addresses, secret seeds, liquidity pools,
-  claimable balances, malformed base32, corrupted checksums, truncated
-  addresses, empty strings)
-
-### Running property tests locally
-
-```sh
-# Run the full property test suite (1000 iterations per property)
-go test -run TestParseAddressFormatAddressProperty -v ./...
-
-# Run the deterministic subset (100 iterations, fixed seed for CI reproducibility)
-go test -run TestParseAddressFormatAddressDeterministic -v ./...
-
-# Run the complementary XDR-level tests
-go test -run 'TestParseAddressWithRandomXDR|TestFormatAddressRejectsInvalidXDR' -v ./...
-```
-
-### Reproducing a property test failure
-
-If a property test fails, the output will show the seed and the generated value
-that causes the failure. To reproduce:
-
-```sh
-# 1. Note the seed from the failure output (e.g., "failed with initial seed: 12345")
-# 2. Run with that seed:
-go test -run TestParseAddressFormatAddressProperty -v -count=1 ./... 2>&1 | head -50
-
-# Or run the deterministic test which uses a fixed seed:
-go test -run TestParseAddressFormatAddressDeterministic -v ./...
-```
-
-Similarly, to run and reproduce expiration and signature consistency property
-tests for `AuthorizeEntry` across all address arms and delegate tree depths:
-
-```sh
-go test -run TestAuthorizeEntryExpirationProperty -v ./...
-```
-
-The deterministic test (`TestParseAddressFormatAddressDeterministic`) runs a
-fixed set of 100 iterations per property with seed `0xDEADBEEF` and is the one
-executed in CI. If it passes locally but the full property test fails, the
-failure is in the extended search space — increase `MinSuccessfulTests` in the
-deterministic test to narrow it down.
-
-### Fuzzing
-
-The full story lives in [docs/fuzzing.md](docs/fuzzing.md): the eight targets
-and the property each asserts, the nightly `continuous-fuzz` workflow that runs
-them beyond CI's time budget, and the crash-to-regression-seed process. What
-follows is what you need while working.
-
-The short loop:
-
-```sh
-make fuzz               # every target, 30s each (override: make fuzz FUZZTIME=2m)
-go run ./cmd/gencorpus  # regenerate the seed corpus from the golden vectors
-```
-
-#### The eight fuzz targets
-
-| Target                         | Package            | Run command                                                                  |
-| ------------------------------ | ------------------ | ---------------------------------------------------------------------------- |
-| `FuzzValidateDelegateOrder`    | root (`.`)         | `go test -run '^$' -fuzz FuzzValidateDelegateOrder -fuzztime 30s .`          |
-| `FuzzInspect`                  | root (`.`)         | `go test -run '^$' -fuzz FuzzInspect -fuzztime 30s .`                        |
-| `FuzzPreimage`                 | root (`.`)         | `go test -run '^$' -fuzz FuzzPreimage -fuzztime 30s .`                       |
-| `FuzzPayload`                  | root (`.`)         | `go test -run '^$' -fuzz FuzzPayload -fuzztime 30s .`                        |
-| `FuzzDecodeAuthorizationEntry` | root (`.`)         | `go test -run '^$' -fuzz FuzzDecodeAuthorizationEntry -fuzztime 30s .`       |
-| `FuzzVerifyEntry`              | root (`.`)         | `go test -run '^$' -fuzz FuzzVerifyEntry -fuzztime 30s .`                    |
-| `FuzzDiffEntries`              | root (`.`)         | `go test -run '^$' -fuzz FuzzDiffEntries -fuzztime 30s .`                    |
-| `FuzzCopyRoundTrip`            | `internal/xdrcopy` | `go test -run '^$' -fuzz FuzzCopyRoundTrip -fuzztime 30s ./internal/xdrcopy` |
-
-Run all eight with one command:
-
-```sh
-make fuzz                       # 30s each
-make fuzz FUZZTIME=2m           # 2 minutes each
-```
-
-#### Seed corpus location
-
-The seed corpus lives in `testdata/fuzz/<TargetName>/` for the seven
-root-package targets, and in `internal/xdrcopy/testdata/fuzz/FuzzCopyRoundTrip/`
-for `FuzzCopyRoundTrip`. Go reads a target's seeds **only** from its dedicated
-directory; files elsewhere are ignored. Every file must be in Go's corpus format
-(a `go test fuzz v1` header followed by one Go literal per fuzz argument). A
-file in the wrong format fails the package's tests rather than being skipped.
-`FuzzDiffEntries` is the one target whose seeds carry two `[]byte` literals, one
-per argument.
-
-Regenerate the seeds from the committed golden vectors:
-
-```sh
-go run ./cmd/gencorpus
-```
-
-This is deterministic: the same vectors produce byte-identical corpus files. CI
-runs it on every push and fails if the committed seeds drift.
-
-#### Running a single seed as a regression test
-
-Each corpus file runs as a named subtest under `go test ./...` with no `-fuzz`
-flag. To run one seed by name:
-
-```sh
-go test -run 'FuzzValidateDelegateOrder/v2_sub_invocations_0' -v .
-```
-
-#### Reproducing a CI crash locally
-
-When the nightly `continuous-fuzz` workflow finds a crash, it files (or comments
-on) an issue titled `[fuzz] <Target> found a failing input`. The issue body
-includes:
-
-- The tail of the fuzz log.
-- The one-command local reproduction (e.g.,
-  `go test -run '^$' -fuzz FuzzInspect -fuzztime 30s .`).
-- Every reproducer the run wrote, base64-encoded, ready to decode into the
-  target's seed corpus directory.
-
-To reproduce:
-
-1. Decode the base64 block into `testdata/fuzz/<Target>/`, keeping the filename
-   the fuzzer wrote.
-2. Confirm it fails:
-
-   ```sh
-   go test -run 'Fuzz<Target>/<filename>' <package>
-   ```
-
-   Example:
-
-   ```sh
-   go test -run 'FuzzInspect/trailing_garbage_byte_0' .
-   ```
-
-3. Fix the code. If the input turns out to be legal and the target's property
-   overstated — as happened with the trailing-byte input — fix the property and
-   say so in the commit body.
-4. Confirm the seed passes and the full suite is green:
-
-   ```sh
-   go test ./...
-   ```
-
-5. Commit the fix and the seed together. The seed now runs on every `go test`,
-   which is what makes it a regression test rather than a log line.
-
-The differential harness in `testdata/differential/` is a different kind of
-fuzzing — random entries checked across the Go, JS and Python implementations —
-and is documented in its own README.
-
-### Soak testing
-
-`TestSoakBatchSigning` in `soak_test.go` is the long version of the batch
-signing test. It lives behind the `soak` build tag, so `go test ./...` never
-compiles it, and it signs batches of the committed golden vectors from several
-goroutines, round after round, for a caller-chosen duration. After every round
-it asserts that every signed entry is byte-identical to the vector's recorded
-`signed_entry_xdr`, that the goroutine count is back to the baseline taken after
-a warm-up round, and that live heap (`HeapAlloc`, after a `runtime.GC`) is
-within the documented headroom of that baseline. The byte equality is what
-catches a pooled `internal/xdrcopy` buffer handed to two callers; the memory
-assertions catch a leak that only shows up over hours.
-
-```sh
-make soak                # 2m local smoke, race detector on
-make soak SOAKTIME=10m   # the nightly budget
-```
-
-It is **not** a replacement for `go test -race` or for
-`TestCopyConcurrentReuse`: those prove correctness under contention for the
-duration of a short run, while the soak watches the steady state for minutes and
-hours. The `soak` job in `.github/workflows/fuzz.yml` runs the ten-minute
-version on the same nightly schedule as the fuzz targets. The reported run, the
-machine it came from and the measurements the tolerances were set from are in
-[docs/soak.md](docs/soak.md).
-
-### Capturing regressions
-
-If a property test discovers a bug, capture the failing input as a regression
-fixture in `address_test.go` by adding a new table entry to
-`TestParseAddressRejects` or `TestParseAddressFormatAddressRoundTrip` with the
-exact address string that triggered the failure. This ensures the specific case
-remains covered even if the property test parameters change.
-
-## Doc comments on exported identifiers
-
-Every exported const, var, type, func, and method on an exported type needs a
-doc comment. `internal/doccheck` enforces this: it walks the module's
-first-party packages (skipping `adapters/walletsdk`, which is a nested module
-checked by its own CI job) and fails on any exported identifier with none.
-`TestRoot_RepoIsClean` in `internal/doccheck/doccheck_test.go` runs it as part
-of the normal suite, so `go test ./...` fails the same way CI does.
-
-Reproduce a failure locally:
+## Running the E2E tests
+
+E2E tests (build tag `e2e`) interact with Stellar testnet. Each scenario:
+
+1. Funds accounts via friendbot
+2. Reads the RPC URL from `SOROAUTH_RPC_URL` (default:
+   `https://soroban-testnet.stellar.org`)
+3. Verifies the RPC is reachable with a live call
+4. Builds, signs, and submits a transaction
+5. Polls until the transaction is done
+6. Logs the transaction hash, ledger, credential arm, and explorer link
+7. Appends results to `e2e/RESULTS.md`
+
+**Scenarios**:
+
+- **A**: Legacy arm signing accepted live
+- **B**: V2 arm accepted live
+- **C**: `AccountMultiSigner` accepted live
+- **D**: Delegates arm accepted live
+- **E**: Host rejects unregistered delegate
+- **F-I**: Session keys and M-of-N delegation fixtures
+- **J-Q**: Passkey signing scenarios
+- **L-N**: Expiration and nonce replay scenarios
+
+Results are stored in `e2e/RESULTS.md` with date and protocol version.
+
+## Commit Format
+
+Follow conventional commits, lowercase and imperative:
 
 ```
-go test ./internal/doccheck/... -run TestRoot_RepoIsClean -v
+feat(authorize): add ForAddress option for delegate nodes
+test(golden): add vector 9 byte-for-byte verification
+docs(readme): add quickstart 20-line example
+ci: add golden drift check job
+chore: pin js reference SDK to 17.1.0
 ```
 
-Each line names the file, the line, and the identifier. A const or var block can
-be documented either per entry or with one comment above the block (both count);
-a method only needs a doc comment when its receiver type is itself exported,
-since a method on an unexported type is not reachable through godoc.
+No force-pushes. Never commit secrets. Test keys are derived from public labels.
 
-## What a change needs
+## Vector Generation Workflow
 
-- **Tests that can fail.** A test that passes for the wrong reason is worse than
-  no test, because it reads as evidence. Two of this repo's own tests were
-  originally written that way and had to be fixed: a rejection scenario that
-  asserted only "the transaction failed" was passing while the transaction ran
-  out of instructions and never reached the check it was supposedly about. If
-  you add a test that expects a failure, assert _which_ failure.
-- **A test that proves the guard bites.** Where practical, break the thing
-  deliberately, confirm the test fails, and say so in the commit message. Do not
-  commit the break.
-- **No mutation of caller input.** Every function returning a modified entry
-  deep-copies first and has a test proving the input's bytes are unchanged.
-- **Errors that name the sentinel.** Wrap with
-  `fmt.Errorf("soroauth: <operation>: %w", err)` and match with `errors.Is`.
-- **Every exported sentinel has a test that produces it.** This is checked, not
-  trusted: `TestEverySentinelHasAProducingTest` in `errors_meta_test.go` parses
-  the `Err*` names out of `errors.go`, scans every `_test.go` in the package,
-  and fails naming any sentinel no test mentions. So adding a sentinel without a
-  test fails the build.
+1. Run `make vectors` to regenerate `testdata/vectors/*.json`
+2. Run `make vectors-check` to verify Go output matches vectors
+3. If drift is detected, investigate the Go code change and update vectors if
+   protocol-approved
+4. Commit all changes (vectors, go.mod, go.sum, README.md, readme_test.go)
 
-  The check is deliberately loose about _how_ a sentinel is asserted — directly
-  through `errors.Is`, through a `want` field in a table, through a `sentinel`
-  field — because all three are used here and a check that recognised only one
-  would fail honest tests. It therefore proves a sentinel is not forgotten, not
-  that it is well tested. If a sentinel is no longer produced by any code path,
-  delete it rather than writing a test to satisfy the check.
-
-- **Context is checked and passed down, never dropped.** Every exported function
-  that takes a `context.Context` as its first parameter must check `ctx.Err()`
-  before doing work — so a cancelled context fails closed even on a path that
-  never reaches a signer (a source-account entry, an empty batch) — and must
-  pass that same context, unchanged, to every call that can block or produce a
-  signature, in particular `Signer.Sign`. Every such function has a cancellation
-  test that asserts `context.Canceled` and that the signer was not invoked; add
-  one for any new context-taking function.
-- **Fail closed.** Where the protocol or the caller's intent is ambiguous,
-  refuse and return an error rather than guess. Say which reading you chose in
-  the commit message.
-- **Cited protocol claims.** Any statement about host behaviour in a doc
-  comment, README or commit message needs a source — the CAP, the
-  `rs-soroban-env` file and function, or the SDK file and line. Not memory.
-
-## Commit format
-
-Conventional commits, lowercase and imperative:
-
-```
-feat(authorize): sign delegate nodes by address
-test(golden): cover delegate vectors
-docs(readme): write readme
-ci: add golden drift job
-```
-
-One logical unit per commit — a function and its tests, one CLI subcommand, one
-document. Commit bodies carry the evidence: the command you ran and its real
-output, or the file and line you read.
-
-A commit that corrects an earlier wrong claim or wrong code is its own commit,
-and its body says what was wrong, how it was found, and what changed.
-
-## Security
-
-Do not open a public issue for a signature-correctness or key-handling bug. See
-[SECURITY.md](SECURITY.md). The security issue template redirects to private
-advisories rather than collecting a report — use it rather than a blank issue,
-and never paste vulnerability details into any public form.
+**Never edit a golden vector by hand** - it constitutes a wire-format
+regression.
 
 ## License
 
-By contributing you agree your contributions are licensed under Apache-2.0.
+This project is Apache-2.0 licensed. See `LICENSE` for details.
 
-### No per-file license headers
+## No per-file license headers
 
-Source files deliberately carry no license header. The whole repository is
-Apache-2.0, declared once in [LICENSE](LICENSE) at the root, which is what
-GitHub and `pkg.go.dev` read to report the license. Apache-2.0 does not require
-a header in each file: the boilerplate notice is in its appendix, which follows
-"END OF TERMS AND CONDITIONS" in [LICENSE](LICENSE), so it is guidance on
-applying the license rather than one of its terms. A header copied into hundreds
-of files adds nothing the root file does not already say, and a header that
-drifts from `LICENSE` would be worse than none.
+The repository-wide [LICENSE](LICENSE) applies to source files. They do not
+carry individual license headers by design.
 
-So do not add a header to a file you create, and do not add an SPDX line. Files
-copied in from another project under a different license are the exception: they
-keep their original notice, and the pull request says where they came from.
-Because no header is adopted, there is no CI check for one.
+## Security Issues
+
+Report security issues via GitHub Security Advisories. Do not create public
+issues for security bugs. The scope includes signature-correctness bugs
+(critical), not documentation improvements or feature requests.
+
+## Questions?
+
+Open an issue or start a discussion in the GitHub repository.

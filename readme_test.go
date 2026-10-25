@@ -26,6 +26,16 @@ var readmeSnippets = []struct {
 	{name: "delegates", sourceFile: "delegates.go"},
 	{name: "allowresign", sourceFile: "allowresign.go"},
 	{name: "remotesigner", sourceFile: "remotesigner.go"},
+	{name: "sign_legacy", sourceFile: "sign_legacy.go"},
+	{name: "sign_v2", sourceFile: "sign_v2.go"},
+	{name: "sign_delegates", sourceFile: "sign_delegates.go"},
+	{name: "upgrade_to_v2", sourceFile: "upgrade_to_v2.go"},
+	{name: "inspect_entry", sourceFile: "inspect_entry.go"},
+	{name: "build_preimage", sourceFile: "build_preimage.go"},
+	{name: "sign_batch", sourceFile: "sign_batch.go"},
+	{name: "validate_delegates", sourceFile: "validate_delegates.go"},
+	{name: "compute_expiration", sourceFile: "compute_expiration.go"},
+	{name: "wrap_legacy", sourceFile: "wrap_legacy.go"},
 }
 
 var goFencePattern = regexp.MustCompile("(?s)```go\n(.*?)```")

@@ -22,33 +22,39 @@ navigation.
 
 ## Guides
 
-| Document                                        | Answers                                                                                                            |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [labels](labels.md)                             | What each complexity and area label means, who applies it, and who has the final say on complexity.                |
-| [signers](signers.md)                           | Which signer to use for a given threat model, and what evidence backs each one.                                    |
-| [signing-flow](signing-flow.md)                 | The record, sign, enforce, assemble and submit sequence, with the responsible function at each step.               |
-| [passkeys](passkeys.md)                         | How to sign for a WebAuthn / passkey smart wallet, end to end.                                                     |
-| [migrating](migrating.md)                       | How to replace hand-rolled auth-entry signing with soroauth and verify it produced identical bytes.                |
-| [multi-party-signing](multi-party-signing.md)   | How three parties sign one delegate tree in sequence, and why the expiration cannot change once anyone has signed. |
-| [verification-limits](verification-limits.md)   | What `soroauth verify` can and cannot establish offline.                                                           |
-| [verification-service](verification-service.md) | How to run the HTTP verification service, and what it will and will not do.                                        |
-| [sdk-support](sdk-support.md)                   | Which `go-stellar-sdk` versions are supported and how the pin moves.                                               |
-| [browser](browser.md)                           | How to use soroauth from a browser page: installing and loading the wasm module, and the passkey flow.             |
-| [fixture-quickstart](fixture-quickstart.md)     | How to run the e2e fixture contracts against a local Stellar quickstart container.                                 |
-| [reproducibility](reproducibility.md)           | How to reproduce the released CLI binaries byte-for-byte from a tagged source checkout.                            |
+| Document                                                        | Answers                                                                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [labels](labels.md)                                             | What each complexity and area label means, who applies it, and who has the final say on complexity.                |
+| [signers](signers.md)                                           | Which signer to use for a given threat model, and what evidence backs each one.                                    |
+| [adding-a-signer](adding-a-signer.md)                           | How to add a signer adapter, run the conformance suite, and document its custody model.                            |
+| [signing-flow](signing-flow.md)                                 | The record, sign, enforce, assemble and submit sequence, with the responsible function at each step.               |
+| [passkeys](passkeys.md)                                         | How to sign for a WebAuthn / passkey smart wallet, end to end.                                                     |
+| [migrating](migrating.md)                                       | How to replace hand-rolled auth-entry signing with soroauth and verify it produced identical bytes.                |
+| [soroauth-vs-explain](soroauth-vs-explain.md)                   | Where soroauth-go ends, where soroauth-explain begins, and how one entry flows through both.                       |
+| [multi-party-signing](multi-party-signing.md)                   | How three parties sign one delegate tree in sequence, and why the expiration cannot change once anyone has signed. |
+| [verification-limits](verification-limits.md)                   | What `soroauth verify` can and cannot establish offline.                                                           |
+| [verification-service](verification-service.md)                 | How to run the HTTP verification service, and what it will and will not do.                                        |
+| [verification-service-runbook](verification-service-runbook.md) | How to configure, monitor, drain, and troubleshoot the verification service.                                       |
+| [sdk-support](sdk-support.md)                                   | Which `go-stellar-sdk` versions are supported and how the pin moves.                                               |
+| [compatibility](compatibility.md)                               | Which Go, CLI, JSON, vector, wire, and SDK surfaces are compatibility promises.                                    |
+| [browser](browser.md)                                           | How to use soroauth from a browser page: installing and loading the wasm module, and the passkey flow.             |
+| [fixture-quickstart](fixture-quickstart.md)                     | How to run the e2e fixture contracts against a local Stellar quickstart container.                                 |
+| [reproducibility](reproducibility.md)                           | How to reproduce the released CLI binaries byte-for-byte from a tagged source checkout.                            |
 
 ## Reference
 
-| Document                                      | Answers                                                                                                   |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [analyzer-heuristics](analyzer-heuristics.md) | What each risk-analyzer heuristic catches and what it misses.                                             |
-| [glossary](glossary.md)                       | What credential arm, preimage, payload, nonce and delegate ordering mean, with the CAP that defines each. |
-| [security-analysis](security-analysis.md)     | How CodeQL and dependency review run in CI, and how static-analysis findings are triaged.                 |
-| [FIXTURES](FIXTURES.md)                       | What each e2e fixture contract exercises, and why none is a product.                                      |
-| [ISSUE_BACKLOG](ISSUE_BACKLOG.md)             | The written-up work that is not done yet; `WAVE9_BACKLOG.json` is the newer Wave's source of truth.       |
-| [WAVE10_BACKLOG](WAVE10_BACKLOG.md)           | The Wave 10 issue backlog and acceptance criteria.                                                        |
-| [diagrams](diagrams/README.md)                | The rendered signing-flow and delegate-tree diagrams, and their committed sources.                        |
-| [UPSTREAM_PROPOSAL](../UPSTREAM_PROPOSAL.md)  | The proposal to add a minimal auth-entry signing helper to `go-stellar-sdk` itself.                       |
+| Document                                              | Answers                                                                                                   |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [analyzer-heuristics](analyzer-heuristics.md)         | What each risk-analyzer heuristic catches and what it misses.                                             |
+| [canonical-json](canonical-json.md)                   | The versioned JSON representation of an authorization entry, and what the decoder refuses.                |
+| [root-package-assessment](root-package-assessment.md) | Why the root package is not split into subpackages, with the dependency graph that settles it.            |
+| [glossary](glossary.md)                               | What credential arm, preimage, payload, nonce and delegate ordering mean, with the CAP that defines each. |
+| [security-analysis](security-analysis.md)             | How CodeQL and dependency review run in CI, and how static-analysis findings are triaged.                 |
+| [FIXTURES](FIXTURES.md)                               | What each e2e fixture contract exercises, and why none is a product.                                      |
+| [ISSUE_BACKLOG](ISSUE_BACKLOG.md)                     | The written-up work that is not done yet; `WAVE9_BACKLOG.json` is the newer Wave's source of truth.       |
+| [WAVE10_BACKLOG](WAVE10_BACKLOG.md)                   | The Wave 10 issue backlog and acceptance criteria.                                                        |
+| [diagrams](diagrams/README.md)                        | The rendered signing-flow and delegate-tree diagrams, and their committed sources.                        |
+| [UPSTREAM_PROPOSAL](../UPSTREAM_PROPOSAL.md)          | The proposal to add a minimal auth-entry signing helper to `go-stellar-sdk` itself.                       |
 
 ## Testing and evidence
 
@@ -59,6 +65,7 @@ navigation.
 | [fuzzing](fuzzing.md)                                                    | How the fuzz targets run continuously, and how a crash becomes a committed regression seed.         |
 | [soak](soak.md)                                                          | The reported batch signing soak run: what each round asserts, and how its tolerances were measured. |
 | [parity](parity.md)                                                      | What agreement across implementations does and does not establish.                                  |
+| [rpc-fixtures](rpc-fixtures.md)                                          | How real RPC request/response pairs are recorded, scrubbed and replayed offline.                    |
 | [differential fuzzing](../testdata/differential/README.md)               | How random entries are checked across the Go, JS and Python implementations.                        |
 | [frozen divergences](../testdata/differential/regressions/README.md)     | The regression corpus of cases the implementations once disagreed on.                               |
 | [frozen vectors](../testdata/frozen/README.md)                           | The cross-version frozen vector set that must never be regenerated.                                 |
@@ -70,29 +77,35 @@ navigation.
 
 These live next to the code they describe.
 
-| Document                                                            | Answers                                                                       |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [wasm](../wasm/README.md)                                           | What the js/wasm signing core exposes and how it is built.                    |
-| [wasm/ts](../wasm/ts/README.md)                                     | How to use the `@soroauth/wasm` TypeScript wrapper.                           |
-| [bindings/jvm](../bindings/jvm/README.md)                           | How to call soroauth from Java 22+ via Panama FFM.                            |
-| [bindings/rust](../bindings/rust/README.md)                         | How to use the Rust `soroauth` crate.                                         |
-| [examples](../examples/README.md)                                   | Overview of the runnable example programs in this repository.                 |
-| [examples/browser-passkey](../examples/browser-passkey/README.md)   | How to run the browser demo that signs with a passkey and submits to testnet. |
-| [examples/remote-signer](../examples/remote-signer/README.md)       | How to run the reference HTTP signing server and its client together.         |
-| [examples/wallet-freighter](../examples/wallet-freighter/README.md) | How to inspect and verify an entry before signing with Freighter.             |
-| [integrations/action](../integrations/action/README.md)             | How to verify Soroban authorization entries in GitHub Actions workflows.      |
-| [integrations/grpc](../integrations/grpc/README.md)                 | How to run and call the gRPC verification service.                            |
-| [server/openapi](../server/openapi/README.md)                       | The OpenAPI 3.0 specification and conformance check for `soroauth-server`.    |
+| Document                                                            | Answers                                                                                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [wasm](../wasm/README.md)                                           | What the js/wasm signing core exposes and how it is built.                                   |
+| [wasm/ts](../wasm/ts/README.md)                                     | How to use the `@soroauth/wasm` TypeScript wrapper.                                          |
+| [bindings/jvm](../bindings/jvm/README.md)                           | How to call soroauth from Java 22+ via Panama FFM.                                           |
+| [bindings/rust](../bindings/rust/README.md)                         | How to use the Rust `soroauth` crate.                                                        |
+| [examples](../examples/README.md)                                   | Overview of the runnable example programs in this repository.                                |
+| [examples/browser-passkey](../examples/browser-passkey/README.md)   | How to run the browser demo that signs with a passkey and submits to testnet.                |
+| [examples/remote-signer](../examples/remote-signer/README.md)       | How to run the reference HTTP signing server and its client together.                        |
+| [examples/wallet-freighter](../examples/wallet-freighter/README.md) | How to inspect and verify an entry before signing with Freighter.                            |
+| [integrations/action](../integrations/action/README.md)             | How to verify Soroban authorization entries in GitHub Actions workflows.                     |
+| [integrations/grpc](../integrations/grpc/README.md)                 | How to run and call the gRPC verification service.                                           |
+| [server/openapi](../server/openapi/README.md)                       | The OpenAPI 3.0 specification and conformance check for `soroauth-server`.                   |
+| [WAVE9_ARCHIVE](WAVE9_ARCHIVE.md)                                   | Archive of the Wave 9 issue backlog, recording which items shipped and which did not.        |
+| [performance-characteristics](performance-characteristics.md)       | Measured costs of main operations, per-operation/per-arm budgets, and delegate tree scaling. |
+| [threat-model](threat-model.md)                                     | Trust boundaries: caller, signer, RPC endpoint, entry source, network.                       |
 
 ## Repository meta
 
-| Document                                                     | Answers                                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| [pull request template](../.github/pull_request_template.md) | What every pull request must state, including the wire-format checklist. |
-| [Memory Audit](memory-audit.md)                              | Audit report identifying where key material and secrets are held in memory.|
-| [CLAUDE.md](../CLAUDE.md)                                    | The original build specification for this project, kept for reference.   |
+| Document                                                     | Answers                                                                     |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| [pull request template](../.github/pull_request_template.md) | What every pull request must state, including the wire-format checklist.    |
+| [Memory Audit](memory-audit.md)                              | Audit report identifying where key material and secrets are held in memory. |
+| [CLAUDE.md](../CLAUDE.md)                                    | The original build specification for this project, kept for reference.      |
 
-- [`signers.md`](signers.md): Signer interfaces, threat models, evidence, and caveats.
-- [`memory-audit.md`](memory-audit.md): Audit of key material handling, zeroing guarantees, and Go runtime limits.
+- [`signers.md`](signers.md): Signer interfaces, threat models, evidence, and
+  caveats.
+- [`memory-audit.md`](memory-audit.md): Audit of key material handling, zeroing
+  guarantees, and Go runtime limits.
 - [`faq.md`](faq.md): Frequently asked questions.
-- [`security-analysis.md`](security-analysis.md): Security considerations and analysis.
+- [`security-analysis.md`](security-analysis.md): Security considerations and
+  analysis.

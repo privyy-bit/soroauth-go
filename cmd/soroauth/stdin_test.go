@@ -5,8 +5,6 @@ import (
 
 	"bytes"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
 	"strings"
 )
@@ -129,22 +127,5 @@ func TestStdinEntryPipelinesReal(t *testing.T) {
 	}
 	if failRes.Error == "" {
 		t.Error("error field empty in JSON error output")
-	}
-}
-func zeroBuffer(buf []byte) {
-	for i := range buf {
-		buf[i] = 0
-	}
-}
-
-func TestKeyMaterialZeroingAudit(t *testing.T) {
-	buf := []byte("S1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	require.NotEmpty(t, buf)
-
-	// Simulate lifetime end and zeroing using library zero buffer pattern
-	zeroBuffer(buf)
-
-	for i, b := range buf {
-		assert.Equal(t, byte(0), b, "byte at index %d not zeroed", i)
 	}
 }

@@ -24,15 +24,21 @@ type crossCompileTarget struct {
 
 // crossCompileResult holds the outcome of a single target build.
 type crossCompileResult struct {
-	Target crossCompileTarget `json:"target"`
-	Error  string             `json:"error,omitempty"`
-	Size   int64              `json:"size,omitempty"`
-	SHA256 string             `json:"sha256,omitempty"`
+	Target        crossCompileTarget `json:"target"`
+	Error         string             `json:"error,omitempty"`
+	Size          int64              `json:"size,omitempty"`
+	SHA256        string             `json:"sha256,omitempty"`
+	SchemaVersion int                `json:"schema_version,omitempty"`
+	Code          string             `json:"code,omitempty"`
+	Message       string             `json:"message,omitempty"`
+	Field         string             `json:"field,omitempty"`
+	ExitCode      int                `json:"exit_code,omitempty"`
 }
 
 // runCrossCompile builds soroauth for all configured targets.
 func runCrossCompile(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("cross-compile", flag.ContinueOnError)
+	registerVerbosityFlags(flags)
 	flags.SetOutput(stderr)
 	jsonFlag := flags.Bool("json", false, "emit results as JSON (one object per line)")
 	targetsFlag := flags.String("targets", "", "comma-separated GOOS/GOARCH pairs (default: all)")
@@ -44,7 +50,8 @@ func runCrossCompile(args []string, stdout, stderr io.Writer) error {
 
 	targets, err := parseTargets(*targetsFlag)
 	if err != nil {
-		return writeJSONError(stdout, *jsonFlag, newErrorf(ExitUsageError, "%v", err))
+		return writeJSONError(stdout, *jsonFlag,
+			withField("--targets", newErrorf(ExitUsageError, "%v", err)))
 	}
 
 	var results []crossCompileResult
@@ -111,7 +118,7 @@ func runCrossCompile(args []string, stdout, stderr io.Writer) error {
 
 		if *outputDir != "" {
 			dest := filepath.Join(*outputDir, binaryName)
-			if err := os.Rename(binaryPath, dest); err != nil {
+			if err := placeBinary(binaryPath, dest); err != nil {
 				result.Error = fmt.Sprintf("moving binary: %v", err)
 				_ = os.Remove(binaryPath)
 				results = append(results, result)
@@ -127,10 +134,26 @@ func runCrossCompile(args []string, stdout, stderr io.Writer) error {
 	if *jsonFlag {
 		enc := json.NewEncoder(stdout)
 		enc.SetEscapeHTML(false)
+		failed := false
+		for i := range results {
+			if results[i].Error != "" {
+				failed = true
+				fields := machineError(newErrorf(ExitGeneralError, "%s", results[i].Error))
+				results[i].Error = fields.Message
+				results[i].SchemaVersion = fields.SchemaVersion
+				results[i].Code = fields.Code
+				results[i].Message = fields.Message
+				results[i].Field = "--targets"
+				results[i].ExitCode = fields.ExitCode
+			}
+		}
 		for _, r := range results {
 			if err := enc.Encode(r); err != nil {
-				return writeJSONError(stdout, true, fmt.Errorf("encoding JSON: %w", err))
+				return newErrorf(ExitGeneralError, "encoding JSON: %w", err)
 			}
+		}
+		if failed {
+			return &jsonErrorHandled{newErrorf(ExitGeneralError, "some targets failed")}
 		}
 		return nil
 	}
@@ -151,6 +174,40 @@ func runCrossCompile(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 
+	return nil
+}
+
+func placeBinary(source, destination string) error {
+	input, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("opening built binary: %w", err)
+	}
+	defer input.Close()
+
+	output, err := os.CreateTemp(filepath.Dir(destination), ".soroauth-*")
+	if err != nil {
+		return fmt.Errorf("creating destination temporary file: %w", err)
+	}
+	temporaryPath := output.Name()
+	defer os.Remove(temporaryPath)
+
+	if _, err := io.Copy(output, input); err != nil {
+		_ = output.Close()
+		return fmt.Errorf("copying built binary: %w", err)
+	}
+	if err := output.Chmod(0o755); err != nil {
+		_ = output.Close()
+		return fmt.Errorf("setting executable permissions: %w", err)
+	}
+	if err := output.Close(); err != nil {
+		return fmt.Errorf("closing destination binary: %w", err)
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		return fmt.Errorf("placing destination binary: %w", err)
+	}
+	if err := os.Remove(source); err != nil {
+		return fmt.Errorf("removing temporary built binary: %w", err)
+	}
 	return nil
 }
 
